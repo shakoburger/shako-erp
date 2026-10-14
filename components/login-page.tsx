@@ -84,10 +84,11 @@ export function LoginPage({ onLoginSuccess, returnTo = '/' }: LoginPageProps) {
       const target = data.user?.redirectTo || returnTo || '/';
       if (data.user?.isOwner && target === '/owner') {
         window.location.assign('/owner');
-      } else if (onLoginSuccess && target === '/') {
-        onLoginSuccess();
       } else {
-        window.location.assign(target);
+        if (onLoginSuccess) {
+          try { onLoginSuccess(); } catch {}
+        }
+        window.location.assign(target || '/');
       }
     } catch (err: any) {
       setError(err.message || 'حدث خطأ أثناء تسجيل الدخول');

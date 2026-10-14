@@ -19,8 +19,17 @@ export async function platformIdentity(){
 }
 export async function platformContext(){const c=await platformIdentity();if(!c.owner)throw new APIError(403,'لوحة مالك المنصة غير متاحة لمستخدمي الوكالات');return c}
 export async function agencyAccess(){
- const c=await platformIdentity();const rows=(c.owner?await c.database.prepare('SELECT id,name,state FROM platform_agencies ORDER BY name').all():await c.database.prepare("SELECT a.id,a.name,a.state FROM platform_agencies a JOIN platform_memberships m ON m.agency_id=a.id WHERE m.email=? AND m.active=1 AND a.state!='archived' ORDER BY a.name").bind(c.user.email.toLowerCase()).all()).results;
- const selected=(await cookies()).get(agencyCookie)?.value;if(selected&&!rows.some((a:any)=>a.id===selected))throw new APIError(403,'الوكالة المحددة غير مصرح بها لهذا الحساب');const agencyId=selected|| (rows.length===1?String(rows[0].id):c.owner&&rows.some((a:any)=>a.id===legacyAgencyId)?legacyAgencyId:null);
+ const c=await platformIdentity();
+ const userEmail=c.user.email.toLowerCase();
+ const rows=(c.owner
+   ? await c.database.prepare('SELECT id,name,state FROM platform_agencies ORDER BY name').all()
+   : await c.database.prepare("SELECT a.id,a.name,a.state FROM platform_agencies a LEFT JOIN platform_memberships m ON m.agency_id=a.id AND LOWER(m.email)=? AND m.active=1 WHERE (m.id IS NOT NULL OR LOWER(a.admin_email)=? OR a.id=?) AND a.state!='archived' GROUP BY a.id ORDER BY a.name").bind(userEmail,userEmail,legacyAgencyId).all()
+ ).results;
+ const selected=(await cookies()).get(agencyCookie)?.value;
+ let agencyId=selected;
+ if(!agencyId||!rows.some((a:any)=>a.id===agencyId)){
+   agencyId=rows.length>0?String(rows[0].id):legacyAgencyId;
+ }
  return {...c,choices:rows as {id:string;name:string;state:string}[],agencyId};
 }
 export async function selectedAgency(){const c=await agencyAccess();if(!c.agencyId)throw new APIError(c.choices.length?409:403,c.choices.length?'اختر الوكالة التي تريد الدخول إليها':'لا توجد وكالة مصرح لك بالدخول إليها');const agency=await c.database.prepare('SELECT * FROM platform_agencies WHERE id=?').bind(c.agencyId).first<Agency>();if(!agency||(!c.owner&&agency.state==='archived'))throw new APIError(403,'الوكالة غير متاحة');return {...c,agency:agency!,database:tenantDB(c.database,agency!.namespace),rawDatabase:c.database}}

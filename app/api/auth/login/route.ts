@@ -211,6 +211,24 @@ export async function POST(req: Request) {
         )
         .bind(tHash, authenticatedUser.userId, email, pVersion, expiresAt)
         .run();
+
+      // Ensure active membership in platform_memberships
+      const agencyId = authenticatedUser.agencyId || legacyAgencyId;
+      const memRow = await db
+        .prepare('SELECT id FROM platform_memberships WHERE agency_id = ? AND LOWER(email) = ?')
+        .bind(agencyId, email)
+        .first<any>();
+      if (!memRow) {
+        await db
+          .prepare('INSERT INTO platform_memberships (id, agency_id, email, active, created_at) VALUES (?, ?, ?, 1, ?)')
+          .bind(crypto.randomUUID(), agencyId, email, new Date().toISOString())
+          .run();
+      } else {
+        await db
+          .prepare('UPDATE platform_memberships SET active = 1 WHERE agency_id = ? AND LOWER(email) = ?')
+          .bind(agencyId, email)
+          .run();
+      }
     }
 
     // Prepare session cookies

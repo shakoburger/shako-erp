@@ -132,12 +132,25 @@ function initDdl(instance: any) {
     const existing = instance.db.prepare('SELECT id FROM system_settings WHERE id = 1').get();
     if (!existing) {
       seedDefaultData(instance);
+    } else {
+      instance.db.prepare(`INSERT OR IGNORE INTO platform_memberships (
+        id, agency_id, email, active, created_at
+      ) VALUES (
+        'mem_default_admin', '00000000-0000-4000-8000-000000000001', 'admin@shako.com', 1, ?
+      )`).run(new Date().toISOString());
     }
   } else if (instance.type === 'sqljs') {
     instance.db.run(ddl);
     const res = instance.db.exec('SELECT id FROM system_settings WHERE id = 1');
     if (!res || !res.length || !res[0].values.length) {
       seedDefaultData(instance);
+    } else {
+      instance.db.run(`INSERT OR IGNORE INTO platform_memberships (
+        id, agency_id, email, active, created_at
+      ) VALUES (
+        'mem_default_admin', '00000000-0000-4000-8000-000000000001', 'admin@shako.com', 1, '${new Date().toISOString()}'
+      )`);
+      persistDb(instance);
     }
   }
 }
@@ -160,6 +173,11 @@ function seedDefaultData(instance: any) {
     ) VALUES (
       'admin@shako.com', 'agency_admin_user', 1, ?, 'مدير الوكالة', 'admin', null, 1, 0
     )`).run(now);
+    instance.db.prepare(`INSERT OR IGNORE INTO platform_memberships (
+      id, agency_id, email, active, created_at
+    ) VALUES (
+      'mem_default_admin', '00000000-0000-4000-8000-000000000001', 'admin@shako.com', 1, ?
+    )`).run(now);
   } else if (instance.type === 'sqljs') {
     instance.db.run('INSERT INTO system_settings (id, owner_id, payload, revision, updated_at) VALUES (1, ?, ?, 1, ?)', [ownerUserId, sysSettingsPayload, now]);
     instance.db.run('INSERT OR IGNORE INTO platform_settings (id, owner_id) VALUES (1, ?)', [ownerUserId]);
@@ -172,6 +190,11 @@ function seedDefaultData(instance: any) {
       email, user_id, active, created_at, name, role, permissions, revision, force_password_change
     ) VALUES (
       'admin@shako.com', 'agency_admin_user', 1, ?, 'مدير الوكالة', 'admin', null, 1, 0
+    )`, [now]);
+    instance.db.run(`INSERT OR IGNORE INTO platform_memberships (
+      id, agency_id, email, active, created_at
+    ) VALUES (
+      'mem_default_admin', '00000000-0000-4000-8000-000000000001', 'admin@shako.com', 1, ?
     )`, [now]);
     persistDb(instance);
   }
