@@ -43,6 +43,7 @@
     "react-resizable-panels": "^4.14.5",
     "recharts": "^3.10.1",
     "sonner": "^2.0.8",
+    "sql.js": "^1.14.2",
     "tailwind-merge": "^3.7.0",
     "tesseract.js": "^7.0.0",
     "vaul": "^1.1.2",

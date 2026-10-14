@@ -1,23 +1,32 @@
+import fs from 'node:fs';
+import path from 'node:path';
+import { createRequire } from 'node:module';
 import { defaults } from './domain';
 
+const require = createRequire(import.meta.url);
+
 let cachedD1: any = null;
+let sqlPromise: Promise<any> | null = null;
+let dbInstance: any = null;
 
-export function getSqliteD1Database(): any {
-  if (cachedD1) return cachedD1;
+const dbPath = process.env.SQLITE_PATH || (process.env.VERCEL ? '/tmp/shako.sqlite' : './shako.sqlite');
 
-  let DatabaseSync: any;
+function persistDb(instance: any) {
   try {
-    const mod = require('node:sqlite');
-    DatabaseSync = mod.DatabaseSync;
+    if (instance?.type === 'sqljs' && !instance?.inTransaction && dbPath && dbPath !== ':memory:') {
+      const data = instance.db.export();
+      const dir = path.dirname(dbPath);
+      if (dir && dir !== '.' && !fs.existsSync(dir)) {
+        fs.mkdirSync(dir, { recursive: true });
+      }
+      fs.writeFileSync(dbPath, Buffer.from(data));
+    }
   } catch (err) {
-    console.warn('node:sqlite is not available in this environment:', err);
-    return null;
+    console.warn('Could not persist database to disk:', err);
   }
+}
 
-  const dbPath = process.env.SQLITE_PATH || (process.env.VERCEL ? '/tmp/shako.sqlite' : './shako.sqlite');
-  const db = new DatabaseSync(dbPath);
-
-  // Initialize schema
+function initDdl(instance: any) {
   const ddl = `
     CREATE TABLE IF NOT EXISTS system_settings (
       id INTEGER PRIMARY KEY,
@@ -118,25 +127,105 @@ export function getSqliteD1Database(): any {
     );
   `;
 
-  db.exec(ddl);
+  if (instance.type === 'node') {
+    instance.db.exec(ddl);
+    const existing = instance.db.prepare('SELECT id FROM system_settings WHERE id = 1').get();
+    if (!existing) {
+      seedDefaultData(instance);
+    }
+  } else if (instance.type === 'sqljs') {
+    instance.db.run(ddl);
+    const res = instance.db.exec('SELECT id FROM system_settings WHERE id = 1');
+    if (!res || !res.length || !res[0].values.length) {
+      seedDefaultData(instance);
+    }
+  }
+}
 
-  // Initialize initial owner row if empty
+function seedDefaultData(instance: any) {
   const now = new Date().toISOString();
-  const existing = db.prepare('SELECT id FROM system_settings WHERE id = 1').get();
-  if (!existing) {
-    const ownerUserId = 'owner_usr_' + crypto.randomUUID().slice(0, 8);
-    db.prepare('INSERT INTO system_settings (id, owner_id, payload, revision, updated_at) VALUES (1, ?, ?, 1, ?)').run(
-      ownerUserId,
-      JSON.stringify(defaults),
-      now
-    );
-    db.prepare('INSERT OR IGNORE INTO platform_settings (id, owner_id) VALUES (1, ?)').run(ownerUserId);
-    db.prepare(`INSERT OR IGNORE INTO platform_agencies (
+  const ownerUserId = 'owner_usr_' + crypto.randomUUID().slice(0, 8);
+  const sysSettingsPayload = JSON.stringify(defaults);
+
+  if (instance.type === 'node') {
+    instance.db.prepare('INSERT INTO system_settings (id, owner_id, payload, revision, updated_at) VALUES (1, ?, ?, 1, ?)').run(ownerUserId, sysSettingsPayload, now);
+    instance.db.prepare('INSERT OR IGNORE INTO platform_settings (id, owner_id) VALUES (1, ?)').run(ownerUserId);
+    instance.db.prepare(`INSERT OR IGNORE INTO platform_agencies (
       id, name, namespace, admin_email, state, payment_status, fee_minor, currency, paid_on, due_on, notes, revision, created_at, updated_at
     ) VALUES (
       '00000000-0000-4000-8000-000000000001', 'وكالة SHAKO للسفر والسياحة', 'legacy', 'owner@shako.com', 'active', 'paid', 0, 'USD', '', '', '', 1, ?, ?
     )`).run(now, now);
+    instance.db.prepare(`INSERT OR IGNORE INTO members (
+      email, user_id, active, created_at, name, role, permissions, revision, force_password_change
+    ) VALUES (
+      'admin@shako.com', 'agency_admin_user', 1, ?, 'مدير الوكالة', 'admin', null, 1, 0
+    )`).run(now);
+  } else if (instance.type === 'sqljs') {
+    instance.db.run('INSERT INTO system_settings (id, owner_id, payload, revision, updated_at) VALUES (1, ?, ?, 1, ?)', [ownerUserId, sysSettingsPayload, now]);
+    instance.db.run('INSERT OR IGNORE INTO platform_settings (id, owner_id) VALUES (1, ?)', [ownerUserId]);
+    instance.db.run(`INSERT OR IGNORE INTO platform_agencies (
+      id, name, namespace, admin_email, state, payment_status, fee_minor, currency, paid_on, due_on, notes, revision, created_at, updated_at
+    ) VALUES (
+      '00000000-0000-4000-8000-000000000001', 'وكالة SHAKO للسفر والسياحة', 'legacy', 'owner@shako.com', 'active', 'paid', 0, 'USD', '', '', '', 1, ?, ?
+    )`, [now, now]);
+    instance.db.run(`INSERT OR IGNORE INTO members (
+      email, user_id, active, created_at, name, role, permissions, revision, force_password_change
+    ) VALUES (
+      'admin@shako.com', 'agency_admin_user', 1, ?, 'مدير الوكالة', 'admin', null, 1, 0
+    )`, [now]);
+    persistDb(instance);
   }
+}
+
+async function getDb(): Promise<any> {
+  if (dbInstance) return dbInstance;
+  if (!sqlPromise) {
+    sqlPromise = (async () => {
+      // 1. Try native node:sqlite
+      try {
+        const mod = require('node:sqlite');
+        if (mod && mod.DatabaseSync) {
+          const instance = { type: 'node', db: new mod.DatabaseSync(dbPath), inTransaction: false };
+          initDdl(instance);
+          return instance;
+        }
+      } catch {}
+
+      // 2. Fallback to sql.js (pure WASM, works across any Node version)
+      const initSqlJs = (await import('sql.js')).default;
+      let wasmBinary: Buffer | undefined;
+      try {
+        const wasmPath = path.join(path.dirname(require.resolve('sql.js')), 'sql-wasm.wasm');
+        if (fs.existsSync(wasmPath)) {
+          wasmBinary = fs.readFileSync(wasmPath);
+        }
+      } catch (err) {
+        console.warn('Could not read sql-wasm.wasm directly:', err);
+      }
+
+      const SQL = await initSqlJs(wasmBinary ? { wasmBinary } : undefined);
+      let sqljsDb: any;
+      if (fs.existsSync(dbPath)) {
+        try {
+          const filebuf = fs.readFileSync(dbPath);
+          sqljsDb = new SQL.Database(filebuf);
+        } catch {
+          sqljsDb = new SQL.Database();
+        }
+      } else {
+        sqljsDb = new SQL.Database();
+      }
+      const instance = { type: 'sqljs', db: sqljsDb, inTransaction: false };
+      initDdl(instance);
+      return instance;
+    })();
+  }
+  dbInstance = await sqlPromise;
+  return dbInstance;
+}
+
+export function getSqliteD1Database(): any {
+  if (cachedD1) return cachedD1;
 
   function wrapStatement(sql: string, boundParams: any[] = []): any {
     return {
@@ -144,25 +233,73 @@ export function getSqliteD1Database(): any {
         return wrapStatement(sql, values);
       },
       async first<T = unknown>(col?: string): Promise<T | null> {
-        const stmt = db.prepare(sql);
-        const row = stmt.get(...boundParams) as any;
-        if (!row) return null;
-        if (col !== undefined) return row[col];
-        return row as T;
+        const instance = await getDb();
+        if (instance.type === 'node') {
+          const stmt = instance.db.prepare(sql);
+          const row = stmt.get(...boundParams) as any;
+          if (!row) return null;
+          if (col !== undefined) return row[col];
+          return row as T;
+        } else {
+          const stmt = instance.db.prepare(sql);
+          try {
+            if (boundParams.length) stmt.bind(boundParams);
+            if (stmt.step()) {
+              const row = stmt.getAsObject();
+              if (col !== undefined) return row[col];
+              return row as T;
+            }
+            return null;
+          } finally {
+            stmt.free();
+          }
+        }
       },
       async all<T = unknown>(): Promise<{ results: T[] }> {
-        const stmt = db.prepare(sql);
-        const rows = stmt.all(...boundParams) as T[];
-        return { results: rows };
+        const instance = await getDb();
+        if (instance.type === 'node') {
+          const stmt = instance.db.prepare(sql);
+          const rows = stmt.all(...boundParams) as T[];
+          return { results: rows };
+        } else {
+          const stmt = instance.db.prepare(sql);
+          const results: any[] = [];
+          try {
+            if (boundParams.length) stmt.bind(boundParams);
+            while (stmt.step()) {
+              results.push(stmt.getAsObject());
+            }
+            return { results };
+          } finally {
+            stmt.free();
+          }
+        }
       },
       async run<T = unknown>(): Promise<{ meta: { changes: number } }> {
-        const stmt = db.prepare(sql);
-        const info = stmt.run(...boundParams);
-        return { meta: { changes: Number(info.changes || 0) } };
+        const instance = await getDb();
+        if (instance.type === 'node') {
+          const stmt = instance.db.prepare(sql);
+          const info = stmt.run(...boundParams);
+          return { meta: { changes: Number(info.changes || 0) } };
+        } else {
+          try {
+            if (boundParams.length) {
+              instance.db.run(sql, boundParams);
+            } else {
+              instance.db.run(sql);
+            }
+            const changes = instance.db.getRowsModified();
+            persistDb(instance);
+            return { meta: { changes } };
+          } catch (e) {
+            console.error('SQL run error on query:', sql, e);
+            throw e;
+          }
+        }
       },
       async raw<T = unknown>(): Promise<T[]> {
-        const stmt = db.prepare(sql);
-        return stmt.all(...boundParams) as T[];
+        const res = await this.all();
+        return res.results as T[];
       }
     };
   }
@@ -172,22 +309,45 @@ export function getSqliteD1Database(): any {
       return wrapStatement(sql);
     },
     async batch<T = unknown>(statements: any[]): Promise<any[]> {
+      const instance = await getDb();
       const results: any[] = [];
-      db.exec('BEGIN');
-      try {
-        for (const s of statements) {
-          const runRes = await s.run();
-          results.push(runRes);
+      if (instance.type === 'node') {
+        instance.db.exec('BEGIN');
+        try {
+          for (const s of statements) {
+            const runRes = await s.run();
+            results.push(runRes);
+          }
+          instance.db.exec('COMMIT');
+        } catch (e) {
+          try {
+            instance.db.exec('ROLLBACK');
+          } catch {}
+          throw e;
         }
-        db.exec('COMMIT');
-      } catch (e) {
-        db.exec('ROLLBACK');
-        throw e;
+      } else {
+        instance.inTransaction = true;
+        instance.db.run('BEGIN');
+        try {
+          for (const s of statements) {
+            const runRes = await s.run();
+            results.push(runRes);
+          }
+          instance.db.run('COMMIT');
+          instance.inTransaction = false;
+          persistDb(instance);
+        } catch (e) {
+          try {
+            instance.db.run('ROLLBACK');
+          } catch {}
+          instance.inTransaction = false;
+          throw e;
+        }
       }
       return results;
     },
     exec(sql: string) {
-      return db.exec(sql);
+      return wrapStatement(sql).run();
     }
   };
 
