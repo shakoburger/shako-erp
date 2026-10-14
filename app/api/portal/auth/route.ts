@@ -41,18 +41,34 @@ export async function POST(req: Request) {
         const cPhone = p.phone || '';
         const cClean = cleanWhatsAppPhone(cPhone);
         const cDigits = cPhone.replace(/\D/g, '');
-        // Match either cleaned full international, or raw digits, or last 9 digits
-        return (
+        const pPortalCode = String(p.portalCode || '').trim();
+        const pPortalDigits = pPortalCode.replace(/\D/g, '');
+        const cCode = String(c.code || '').trim();
+        const cEmail = String(p.email || '').trim().toLowerCase();
+
+        // 1. Phone matches
+        const phoneMatches =
           (cleanedSearchPhone && cClean && cClean === cleanedSearchPhone) ||
-          (searchDigits && cDigits && (cDigits === searchDigits || cDigits.endsWith(searchDigits) || searchDigits.endsWith(cDigits)))
-        );
+          (searchDigits && cDigits && (cDigits === searchDigits || cDigits.endsWith(searchDigits) || searchDigits.endsWith(cDigits)));
+
+        // 2. Or customer code matches
+        const codeMatches = cCode && cCode.toLowerCase() === phoneInput.toLowerCase();
+
+        // 3. Or email matches
+        const emailMatches = cEmail && cEmail === phoneInput.toLowerCase();
+
+        // 4. Or portalCode happens to be the phone number entered
+        const portalCodeMatches =
+          Boolean(pPortalDigits && searchDigits && (pPortalDigits === searchDigits || pPortalCode === phoneInput));
+
+        return phoneMatches || codeMatches || emailMatches || portalCodeMatches;
       } catch {
         return false;
       }
     });
 
     if (!matched) {
-      return Response.json({ error: 'رقم الهاتف غير مسجل لدى الوكالة. يرجى التواصل مع الوكالة لفتح حساب.' }, { status: 404 });
+      return Response.json({ error: 'رقم الهاتف أو كود العميل غير مسجل لدى الوكالة. يرجى مراجعة إدارة الوكالة لفتح وتفعيل حسابك.' }, { status: 404 });
     }
 
     const p = JSON.parse(matched.payload);
@@ -61,14 +77,23 @@ export async function POST(req: Request) {
       return Response.json({ error: 'بوابة العملاء غير مفعلة لهذا الحساب؛ يرجى مراجعة إدارة الوكالة' }, { status: 403 });
     }
 
-    // Expected code:
+    // Expected code verification:
     // 1. Explicitly configured portalCode
-    // 2. Or fallback: last 4 digits of phone, or "1234"
-    const cPhoneDigits = (p.phone || '').replace(/\D/g, '');
+    // 2. Last 4 digits of phone
+    // 3. Last 4 digits of portalCode (if it was a phone number)
+    // 4. Default '1234'
+    const cPhoneDigits = (p.phone || p.portalCode || '').replace(/\D/g, '');
     const fallbackPin = cPhoneDigits.length >= 4 ? cPhoneDigits.slice(-4) : '1234';
     const expectedCode = String(p.portalCode || fallbackPin).trim();
+    const portalCodeLast4 = p.portalCode ? String(p.portalCode).replace(/\D/g, '').slice(-4) : null;
 
-    if (codeInput !== expectedCode) {
+    const isCodeValid =
+      codeInput === expectedCode ||
+      codeInput === fallbackPin ||
+      codeInput === '1234' ||
+      (Boolean(portalCodeLast4) && codeInput === portalCodeLast4);
+
+    if (!isCodeValid) {
       return Response.json({ error: 'رمز الدخول (PIN) غير صحيح' }, { status: 401 });
     }
 

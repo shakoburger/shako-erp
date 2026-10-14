@@ -368,14 +368,14 @@ export function ClientPortal() {
 
           <form onSubmit={handleLogin} style={{display: 'flex', flexDirection: 'column', gap: '16px', textAlign: 'right'}}>
             <div>
-              <label style={{display: 'block', fontSize: '13px', fontWeight: 600, color: '#334155', marginBottom: '6px'}}>رقم الهاتف المسجل لدى الوكالة</label>
+              <label style={{display: 'block', fontSize: '13px', fontWeight: 600, color: '#334155', marginBottom: '6px'}}>رقم الهاتف أو كود العميل المسجل لدى الوكالة</label>
               <div style={{position: 'relative'}}>
                 <input
-                  type="tel"
+                  type="text"
                   dir="ltr"
                   value={phone}
                   onChange={e => setPhone(e.target.value)}
-                  placeholder="010XXXXXXXX / 09XXXXXXXX"
+                  placeholder="رقم الهاتف (مثال: 01556949413) أو كود العميل"
                   required
                   style={{width: '100%', padding: '12px 14px 12px 36px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '14px', outline: 'none'}}
                 />
@@ -398,7 +398,7 @@ export function ClientPortal() {
                 <Lock size={18} style={{position: 'absolute', left: '12px', top: '13px', color: '#94a3b8'}}/>
               </div>
               <small style={{display: 'block', fontSize: '11px', color: '#94a3b8', marginTop: '4px'}}>
-                💡 الرمز الافتراضي هو آخر 4 أرقام من هاتفك أو الرمز المسلّم لك من الوكالة
+                💡 الرمز الافتراضي هو آخر 4 أرقام من هاتفك (أو 1234 أو الرمز المخصص المسلّم لك من الوكالة)
               </small>
             </div>
 
