@@ -1,0 +1,53 @@
+import assert from 'node:assert/strict';
+const base='http://127.0.0.1:5173';
+const auth=await fetch(base+'/signin-with-chatgpt?return_to=/',{redirect:'manual'});
+const cookie=auth.headers.getSetCookie().map(c=>c.split(';')[0]).join('; ');
+async function req(path,method='GET',body,expected=200,authenticated=true){const r=await fetch(base+path,{method,headers:{'Content-Type':'application/json',Origin:base,...(authenticated?{Cookie:cookie}:{})},body:body===undefined?undefined:JSON.stringify(body)});const b=await r.json();assert.equal(r.status,expected,JSON.stringify(b));return b}
+let boot=await req('/api/bootstrap');const original=structuredClone(boot.settings),stamp=Date.now();
+async function settings(s){const r=await req('/api/settings','PUT',{settings:s,revision:boot.revision});boot={...boot,...r}}
+const save=b=>req('/api/banks','POST',b,201);
+try{
+ await req('/api/banks','GET',undefined,401,false);
+ const c=await req('/api/records','POST',{kind:'customer',name:'Bank QA '+stamp,date:'2026-10-03',currency:'EGP',amount:0,payload:{}},201);
+ const egp=await save({action:'account',name:'بنك مصر '+stamp,currency:'EGP',rate:1,accountNumber:'00001234',address:'عنوان اختبار',phone:'0100000000',email:'bank@example.test'});
+ const usd=await save({action:'account',name:'بنك الدولار '+stamp,currency:'USD',rate:50});
+ const second=await save({action:'account',name:'بنك محلي ثان '+stamp,currency:'EGP',rate:1});
+ assert.equal(egp.payload.accountNumber,'00001234');
+ await req('/api/banks','POST',{action:'account',name:egp.name,currency:'EGP',rate:1},409);
+ await req('/api/banks','POST',{action:'account',name:'bad',currency:'USD',rate:0},400);
+ await req('/api/banks','POST',{action:'account',id:egp.id,updatedAt:egp.updatedAt,name:egp.name,currency:'USD',rate:1},400);
+ const b={action:'voucher',type:'deposit',date:'2026-10-03',treasuryId:egp.id,counterpartyId:c.id,person:'اختبار محلي',amount:500,notes:'اختبار بنك'};
+ let deposit=await save(b);let d=await req('/api/banks');assert.equal(d.ledger.find(r=>r.payload.bankVoucherId===deposit.id).amount,50000);
+ const beforeRejected=structuredClone(d);await req('/api/banks','POST',{...b,counterpartyId:usd.id,transactionCurrency:'USD',conversionRate:50},400);await req('/api/banks','POST',{...b,id:deposit.id,updatedAt:deposit.updatedAt,counterpartyId:usd.id,transactionCurrency:'USD',conversionRate:50},400);d=await req('/api/banks');assert.equal(d.nextNumber,beforeRejected.nextNumber);assert.deepEqual(d.vouchers,beforeRejected.vouchers);assert.deepEqual(d.ledger,beforeRejected.ledger);
+ const withdraw=await save({...b,type:'withdraw',amount:100});d=await req('/api/banks');assert.equal(d.ledger.find(r=>r.payload.bankVoucherId===withdraw.id).amount,-10000);
+ deposit=await req('/api/banks','POST',{...b,id:deposit.id,updatedAt:deposit.updatedAt,amount:700},200);d=await req('/api/banks');assert.equal(d.ledger.filter(r=>r.payload.bankVoucherId===deposit.id).length,1);assert.equal(d.ledger.find(r=>r.payload.bankVoucherId===deposit.id).amount,70000);
+ await req('/api/banks','POST',{...b,id:deposit.id,updatedAt:'stale'},409);
+ const race=await Promise.all([701,702].map(amount=>fetch(base+'/api/banks',{method:'POST',headers:{'Content-Type':'application/json',Origin:base,Cookie:cookie},body:JSON.stringify({...b,id:deposit.id,updatedAt:deposit.updatedAt,amount})}).then(async r=>({status:r.status,body:await r.json()}))));assert.deepEqual(race.map(r=>r.status).sort(),[200,409]);const winner=race.find(r=>r.status===200).body;d=await req('/api/banks');assert.equal(d.ledger.find(r=>r.payload.bankVoucherId===deposit.id).amount,winner.payload.treasuryMinor);deposit=winner;
+ await req('/api/banks','POST',{...b,type:'transfer',counterpartyId:usd.id,conversionRate:50},400);const transfer=await save({...b,type:'transfer',counterpartyId:second.id,conversionRate:1});d=await req('/api/banks');let legs=d.ledger.filter(r=>r.payload.bankVoucherId===transfer.id);assert.equal(legs.length,2);assert.equal(legs.find(r=>r.payload.treasuryId===egp.id).amount,-50000);assert.equal(legs.find(r=>r.payload.treasuryId===second.id).amount,50000);
+ await req('/api/banks','POST',{...b,type:'transfer',counterpartyId:egp.id},400);
+ await req('/api/banks','POST',{...b,type:'transfer',counterpartyId:usd.id,conversionRate:0},400);
+ await req('/api/banks','POST',{action:'account',id:egp.id,updatedAt:egp.updatedAt,name:egp.name,currency:'EGP',rate:2,accountNumber:'NEW'},200);d=await req('/api/banks');assert.equal(d.vouchers.find(r=>r.id===deposit.id).payload.bankAccountNumber,'00001234');
+ await req('/api/banks','POST',{action:'account',id:egp.id,updatedAt:egp.updatedAt,name:egp.name,currency:'EGP',rate:3},409);
+ const cash=await req('/api/cash','POST',{action:'account',name:'خزينة البنك '+stamp,currency:'EGP',rate:1},201);
+ const fromCash=await save({...b,counterpartyId:cash.id,amount:80});d=await req('/api/banks');assert.equal(d.ledger.find(r=>r.payload.bankVoucherId===fromCash.id).amount,8000);let cashData=await req('/api/cash');assert.equal(cashData.ledger.find(r=>r.payload.bankVoucherId===fromCash.id).amount,-8000);
+ await req('/api/banks','POST',{...b,amount:10,transactionCurrency:'USD',conversionRate:50},400);
+ const optional=await save({...b,person:undefined,amount:1});assert.equal(optional.payload.person,'');
+ await req('/api/banks','POST',{...b,type:'withdraw',counterpartyId:usd.id,amount:10,transactionCurrency:'USD',conversionRate:50},400);const bankCounter=await save({...b,type:'withdraw',counterpartyId:second.id,amount:10,person:''});d=await req('/api/banks');const bankCounterLegs=d.ledger.filter(r=>r.payload.bankVoucherId===bankCounter.id);assert.equal(bankCounterLegs.length,2);assert.equal(bankCounterLegs.find(r=>r.payload.treasuryId===egp.id).amount,-1000);assert.equal(bankCounterLegs.find(r=>r.payload.treasuryId===second.id).amount,1000);
+ const employee=await req('/api/records','POST',{kind:'employee',name:'Bank employee '+stamp,date:'2026-10-03',currency:'EGP',amount:0,payload:{}},201);const staffPayment=await save({...b,type:'withdraw',counterpartyId:employee.id,amount:2,person:''});d=await req('/api/banks');assert.equal(d.ledger.filter(r=>r.payload.bankVoucherId===staffPayment.id).length,1);await req('/api/records?id='+employee.id,'DELETE',undefined,409);
+ const chequeBody={...b,type:'cheque-receive',chequeNumber:'CH-'+stamp,chequeDate:'2026-10-10',chequeStatus:'pending'};
+ let cheque=await save(chequeBody);d=await req('/api/banks');assert.equal(d.ledger.filter(r=>r.payload.bankVoucherId===cheque.id).length,0);await req('/api/records?id='+c.id,'DELETE',undefined,409);
+ await req('/api/banks','POST',chequeBody,409);
+ cheque=await req('/api/banks','POST',{...chequeBody,id:cheque.id,updatedAt:cheque.updatedAt,chequeStatus:'cleared',clearedDate:'2026-10-05'},200);d=await req('/api/banks');assert.equal(d.ledger.find(r=>r.payload.bankVoucherId===cheque.id).amount,50000);assert.equal(d.ledger.find(r=>r.payload.bankVoucherId===cheque.id).date,'2026-10-05');
+ await req('/api/banks','POST',{...chequeBody,id:cheque.id,updatedAt:cheque.updatedAt,chequeNumber:'NEW'},400);
+ const issue=await save({...chequeBody,type:'cheque-issue',chequeNumber:'ISS-'+stamp,chequeStatus:'cleared',clearedDate:'2026-10-05'});d=await req('/api/banks');assert.equal(d.ledger.find(r=>r.payload.bankVoucherId===issue.id).amount,-50000);
+ const concurrent=await Promise.all(Array.from({length:4},(_,i)=>save({...b,amount:11+i})));assert.equal(new Set(concurrent.map(x=>x.code)).size,4);
+ await req('/api/banks','DELETE',{id:transfer.id,updatedAt:transfer.updatedAt});d=await req('/api/banks');legs=d.ledger.filter(r=>r.payload.bankVoucherId===transfer.id);assert.equal(legs.length,2);assert.ok(legs.every(r=>r.amount===0&&r.payload.status==='voided'));
+ await req('/api/banks','DELETE',{id:fromCash.id,updatedAt:fromCash.updatedAt});cashData=await req('/api/cash');assert.equal(cashData.ledger.find(r=>r.payload.bankVoucherId===fromCash.id).amount,0);
+ await req('/api/records?id='+egp.id,'DELETE',undefined,400);
+ await settings({...original,modules:{...original.modules,cash:false}});await req('/api/banks','POST',{...b,counterpartyId:cash.id},423);d=await req('/api/banks');assert.ok(!d.counterparties.some(x=>x.kind==='cash-account'));
+ await settings({...original,modules:{...original.modules,customers:false}});await req('/api/banks','POST',b,423);
+ await settings({...original,modules:{...original.modules,banks:false}});await req('/api/banks','GET',undefined,423);await req('/api/banks','POST',b,423);await req('/api/banks','DELETE',{id:deposit.id,updatedAt:deposit.updatedAt},423);
+ await settings({...original,globalLocked:true});await req('/api/banks','GET',undefined,423);
+ const backup=await req('/api/owner?mode=backup');assert.ok(backup.records.some(x=>x.id===egp.id));assert.ok(backup.records.some(x=>x.kind==='bank-sequence'));assert.ok(backup.records.some(x=>x.kind==='bank-cheque-key'));const log=await req('/api/owner');assert.ok(log.audit.some(x=>x.action==='حذف تحويل بنكي'));
+ console.log('Bank QA passed: catalogs, deposit/withdraw signs, transfer two legs, cash-bank conservation, cross-currency rejection, edits, stale revisions, cheque pending/cleared/duplicate, concurrent numbers, void, snapshots, locks, audit and backup.');
+}finally{await settings(original)}

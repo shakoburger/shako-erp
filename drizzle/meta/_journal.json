@@ -1,0 +1,27 @@
+{
+  "version": "7",
+  "dialect": "sqlite",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "6",
+      "when": 1791008993150,
+      "tag": "0000_tiresome_the_captain",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1791136099213,
+      "tag": "0001_kind_phil_sheldon",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1791278219596,
+      "tag": "0002_useful_shinko_yamashiro",
+      "breakpoints": true
+    }
+  ]
+}

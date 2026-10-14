@@ -1,0 +1,7 @@
+import {z} from 'zod';
+import {handled,json,sameOrigin,body,APIError} from '@/lib/server';
+import {platformIdentity,agencyCookieHeader,type Agency} from '@/lib/platform';
+export async function GET(){return handled(async()=>{const c=await platformIdentity();const agencies=(c.owner?await c.database.prepare('SELECT id,name,state FROM platform_agencies ORDER BY name').all():await c.database.prepare("SELECT a.id,a.name,a.state FROM platform_agencies a JOIN platform_memberships m ON m.agency_id=a.id WHERE m.email=? AND m.active=1 AND a.state!='archived' ORDER BY a.name").bind(c.user.email.toLowerCase()).all()).results;return json({agencies})})}
+export async function POST(req:Request){return handled(async()=>{sameOrigin(req);const c=await platformIdentity(),b=z.object({agencyId:z.string().uuid()}).strict().parse(await body(req));const row=await c.database.prepare('SELECT * FROM platform_agencies WHERE id=?').bind(b.agencyId).first<Agency>();if(!row)throw new APIError(404,'الوكالة غير موجودة');if(!c.owner){const m=await c.database.prepare('SELECT active FROM platform_memberships WHERE agency_id=? AND email=? AND active=1').bind(row.id,c.user.email.toLowerCase()).first();if(!m||row.state==='archived')throw new APIError(403,'هذه الوكالة غير مصرح لك بها')}
+ return new Response(JSON.stringify({ok:true}),{headers:{'Content-Type':'application/json','Cache-Control':'no-store','Set-Cookie':agencyCookieHeader(row.id,req)}})
+})}

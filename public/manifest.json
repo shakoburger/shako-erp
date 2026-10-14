@@ -1,0 +1,20 @@
+{
+  "name": "SHAKO ERP - نظام إدارة وكالات السفر والسياحة",
+  "short_name": "SHAKO ERP",
+  "description": "النظام المتكامل لإدارة التذاكر، الحسابات، الخزائن، البنوك، وبوابة العملاء",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f8fafc",
+  "theme_color": "#2563eb",
+  "dir": "rtl",
+  "lang": "ar",
+  "orientation": "any",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
