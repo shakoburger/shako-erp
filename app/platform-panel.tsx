@@ -1,6 +1,6 @@
 'use client';
 import {useEffect,useState} from 'react';
-import {Building2,ShieldCheck,Plus,RefreshCw,Download,Settings,Archive,ExternalLink,KeyRound,Copy,Check,CheckCircle2,Clock,Crown,Power,DollarSign,Eye} from 'lucide-react';
+import {Building2,ShieldCheck,Plus,RefreshCw,Download,Settings,Archive,ExternalLink,KeyRound,Copy,Check,CheckCircle2,Clock,Crown,Power,DollarSign,Eye,Lock,User} from 'lucide-react';
 import {Dialog,DialogContent,DialogTitle,DialogDescription} from '@/components/ui/dialog';
 import {Toaster,toast} from 'sonner';
 import {api,download} from './erp-system';
@@ -36,6 +36,71 @@ export function PlatformPanel(){
         [query,setQuery]=useState(''),
         [filter,setFilter]=useState('all'),
         [copiedPass,setCopiedPass]=useState(false);
+
+  // Owner security credentials state
+  const [ownerSecurityOpen, setOwnerSecurityOpen] = useState(false);
+  const [ownerUsername, setOwnerUsername] = useState('owner');
+  const [ownerDisplayName, setOwnerDisplayName] = useState('');
+  const [ownerEmail, setOwnerEmail] = useState('');
+  const [ownerNewPassword, setOwnerNewPassword] = useState('');
+  const [ownerConfirmPassword, setOwnerConfirmPassword] = useState('');
+  const [ownerShowPass, setOwnerShowPass] = useState(false);
+  const [ownerSaving, setOwnerSaving] = useState(false);
+
+  async function openOwnerSecurity(){
+    setOwnerNewPassword('');
+    setOwnerConfirmPassword('');
+    setOwnerSecurityOpen(true);
+    try{
+      const res = await api('/api/platform/owner-credentials');
+      if(res){
+        setOwnerUsername(res.username || 'owner');
+        setOwnerDisplayName(res.name || '');
+        setOwnerEmail(res.email || '');
+      }
+    }catch(e:any){
+      console.warn('Could not load owner credentials:', e);
+    }
+  }
+
+  async function handleSaveOwnerCredentials(e: React.FormEvent){
+    e.preventDefault();
+    const trimmedUser = ownerUsername.trim();
+    if(!trimmedUser){
+      toast.error('يرجى إدخال اسم مستخدم المالك');
+      return;
+    }
+    if(ownerNewPassword && ownerNewPassword.length < 6){
+      toast.error('كلمة المرور يجب ألا تقل عن 6 أحرف');
+      return;
+    }
+    if(ownerNewPassword && ownerNewPassword !== ownerConfirmPassword){
+      toast.error('كلمة المرور وتأكيدها غير متطابقين');
+      return;
+    }
+
+    setOwnerSaving(true);
+    try{
+      await api('/api/platform/owner-credentials', {
+        method: 'POST',
+        body: JSON.stringify({
+          username: trimmedUser,
+          password: ownerNewPassword || undefined,
+          name: ownerDisplayName.trim() || undefined,
+          email: ownerEmail.trim() || undefined,
+        })
+      });
+      toast.success('تم تحديث بيانات دخول مالك المنصة بنجاح!');
+      setOwnerSecurityOpen(false);
+      setOwnerNewPassword('');
+      setOwnerConfirmPassword('');
+      await load();
+    }catch(err:any){
+      toast.error(err.message || 'فشل تحديث بيانات دخول المالك');
+    }finally{
+      setOwnerSaving(false);
+    }
+  }
 
   async function load(){
     try{
@@ -76,10 +141,14 @@ export function PlatformPanel(){
             adminName:draft.adminName||undefined,
             resetPassword:draft.resetPassword||undefined,
             forcePasswordChange:draft.forcePasswordChange,
-            ownerBackupAllowed:draft.ownerBackupAllowed
+            ownerBackupAllowed:draft.ownerBackupAllowed,
+            accountantEmail:draft.accountantEmail||undefined,
+            accountantPassword:draft.accountantPassword||undefined,
+            bookingEmail:draft.bookingEmail||undefined,
+            bookingPassword:draft.bookingPassword||undefined,
           })
         });
-        toast.success(draft.resetPassword?'تم حفظ إعدادات الوكالة وتعيين كلمة مرور المدير بنجاح':'تم حفظ الوكالة والاشتراك بنجاح');
+        toast.success(draft.resetPassword||draft.accountantPassword||draft.bookingPassword?'تم حفظ إعدادات الوكالة وتعيين كلمات المرور بنجاح':'تم حفظ الوكالة والاشتراك بنجاح');
       }else{
         await api('/api/platform',{
           method:'POST',
@@ -163,6 +232,10 @@ export function PlatformPanel(){
     adminEmail:a.admin_email||a.adminEmail||'',
     adminName:'',
     resetPassword:'',
+    accountantEmail:'accountant@shako.com',
+    accountantPassword:'',
+    bookingEmail:'booking@shako.com',
+    bookingPassword:'',
     forcePasswordChange:true,
     ownerBackupAllowed:a.backupAllowed!==false,
     paymentStatus:a.payment_status,
@@ -271,6 +344,26 @@ export function PlatformPanel(){
         </div>
 
         <div style={{display:'flex',alignItems:'center',gap:'10px',flexWrap:'wrap'}}>
+          <button
+            type="button"
+            onClick={openOwnerSecurity}
+            style={{
+              background: 'linear-gradient(135deg, #d97706 0%, #b45309 100%)',
+              color: '#ffffff',
+              border: '1px solid rgba(251, 191, 36, 0.4)',
+              padding: '9px 16px',
+              borderRadius: '8px',
+              fontWeight: 700,
+              fontSize: '13px',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              cursor: 'pointer',
+              boxShadow: '0 4px 12px rgba(217, 119, 6, 0.35)'
+            }}
+          >
+            <KeyRound size={16}/> تغيير كلمة السر واسم المستخدم
+          </button>
           <a
             href="/?preview=agency"
             className="plain-button"
@@ -677,43 +770,46 @@ export function PlatformPanel(){
 
                 {/* EXISTING AGENCY: Manager email and password reset management */}
                 {draft.id && (
-                  <div className="span-two" style={{background:'#f8fafc',padding:'14px',borderRadius:'8px',border:'1px solid #e2e8f0',margin:'6px 0'}}>
-                    <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'10px'}}>
-                      <h3 style={{fontSize:'14px',fontWeight:700,color:'#0f766e',display:'flex',alignItems:'center',gap:'6px',margin:0}}>
-                        <KeyRound size={17}/> بيانات مدير الوكالة وكلمة المرور
+                  <div className="span-two" style={{background:'#f8fafc',padding:'16px',borderRadius:'10px',border:'1px solid #e2e8f0',margin:'8px 0'}}>
+                    <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'12px',borderBottom:'1px solid #e2e8f0',paddingBottom:'8px'}}>
+                      <h3 style={{fontSize:'14.5px',fontWeight:700,color:'#0f766e',display:'flex',alignItems:'center',gap:'6px',margin:0}}>
+                        <KeyRound size={18}/> إدارة حسابات وكلمات مرور مستخدمي الوكالة
                       </h3>
-                      <span style={{fontSize:'11px',color:'#64748b'}}>تحكم المالك المباشر بحساب المدير</span>
+                      <span style={{fontSize:'11.5px',color:'#64748b'}}>تحكم المالك المباشر بحسابات فريق عمل الوكالة</span>
                     </div>
 
-                    <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'12px',marginBottom:'10px'}}>
-                      <label>
-                        <span>بريد مدير الوكالة (البريد الإلكتروني)</span>
-                        <input
-                          type="email"
-                          dir="ltr"
-                          placeholder="admin@example.com"
-                          value={draft.adminEmail||''}
-                          onChange={e=>setDraft({...draft,adminEmail:e.target.value})}
-                        />
-                      </label>
-                      <label>
-                        <span>تعيين كلمة مرور جديدة / مؤقتة للمدير</span>
-                        <input
-                          type="text"
-                          dir="ltr"
-                          placeholder="اتركه فارغاً للإبقاء على الحالية"
-                          value={draft.resetPassword||''}
-                          onChange={e=>setDraft({...draft,resetPassword:e.target.value})}
-                        />
-                      </label>
-                    </div>
-
-                    <div style={{display:'flex',flexWrap:'wrap',alignItems:'center',justifyContent:'space-between',gap:'8px',background:'#fff',padding:'8px 12px',borderRadius:'6px',border:'1px solid #cbd5e1'}}>
-                      <div style={{display:'flex',gap:'8px',flexWrap:'wrap'}}>
+                    {/* 1. Agency Manager Account */}
+                    <div style={{background:'#ffffff',border:'1px solid #e2e8f0',borderRadius:'8px',padding:'12px',marginBottom:'12px'}}>
+                      <div style={{fontWeight:700,fontSize:'13px',color:'#0284c7',marginBottom:'8px',display:'flex',alignItems:'center',gap:'6px'}}>
+                        <User size={15}/> 1. حساب مدير الوكالة (الآدمن المشترك)
+                      </div>
+                      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'10px',marginBottom:'8px'}}>
+                        <label>
+                          <span>بريد / اسم مستخدم المدير</span>
+                          <input
+                            type="email"
+                            dir="ltr"
+                            placeholder="admin@example.com"
+                            value={draft.adminEmail||''}
+                            onChange={e=>setDraft({...draft,adminEmail:e.target.value})}
+                          />
+                        </label>
+                        <label>
+                          <span>تعيين كلمة مرور جديدة للمدير</span>
+                          <input
+                            type="text"
+                            dir="ltr"
+                            placeholder="اتركه فارغاً للإبقاء على الحالية"
+                            value={draft.resetPassword||''}
+                            onChange={e=>setDraft({...draft,resetPassword:e.target.value})}
+                          />
+                        </label>
+                      </div>
+                      <div style={{display:'flex',gap:'8px',flexWrap:'wrap',alignItems:'center'}}>
                         <button
                           type="button"
                           className="plain-button"
-                          style={{fontSize:'12px',background:'#eff6ff',color:'#1d4ed8',border:'1px solid #bfdbfe'}}
+                          style={{fontSize:'11.5px',padding:'4px 8px'}}
                           onClick={()=>setDraft({...draft,resetPassword:'Shako@2026',forcePasswordChange:true})}
                         >
                           🔑 كلمة افتراضية (Shako@2026)
@@ -721,7 +817,7 @@ export function PlatformPanel(){
                         <button
                           type="button"
                           className="plain-button"
-                          style={{fontSize:'12px',background:'#f8fafc',border:'1px solid #cbd5e1'}}
+                          style={{fontSize:'11.5px',padding:'4px 8px'}}
                           onClick={()=>{
                             const rand='Shako@'+Math.floor(100000+Math.random()*900000);
                             setDraft({...draft,resetPassword:rand,forcePasswordChange:true});
@@ -733,40 +829,120 @@ export function PlatformPanel(){
                           <button
                             type="button"
                             className="plain-button"
-                            style={{fontSize:'12px',color:'#dc2626'}}
+                            style={{fontSize:'11.5px',color:'#dc2626',padding:'4px 8px'}}
                             onClick={()=>setDraft({...draft,resetPassword:''})}
                           >
                             إلغاء التعيين
                           </button>
                         )}
+                        <label style={{display:'inline-flex',alignItems:'center',gap:'4px',fontSize:'11.5px',cursor:'pointer',marginRight:'auto'}}>
+                          <input
+                            type="checkbox"
+                            checked={draft.forcePasswordChange??true}
+                            onChange={e=>setDraft({...draft,forcePasswordChange:e.target.checked})}
+                          />
+                          <span>إلزام المدير بتغيير كلمة المرور</span>
+                        </label>
                       </div>
-
-                      <label style={{display:'flex',alignItems:'center',gap:'6px',fontSize:'12px',cursor:'pointer',fontWeight:600,color:'#334155'}}>
-                        <input
-                          type="checkbox"
-                          checked={draft.forcePasswordChange??true}
-                          onChange={e=>setDraft({...draft,forcePasswordChange:e.target.checked})}
-                        />
-                        <span>إلزام المدير بتغيير كلمة المرور عند أول دخول</span>
-                      </label>
                     </div>
 
-                    {draft.resetPassword && (
-                      <div style={{fontSize:'12px',color:'#b45309',background:'#fffbeb',border:'1px solid #fde68a',padding:'8px 12px',borderRadius:'6px',marginTop:'8px',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
-                        <span>
-                          ⚠️ سيتم تعيين كلمة المرور إلى: <b dir="ltr" style={{fontFamily:'monospace',fontSize:'13px',fontWeight:700}}>{draft.resetPassword}</b> وإنهاء جميع الجلسات القديمة للمدير.
-                        </span>
+                    {/* 2. Accountant Account */}
+                    <div style={{background:'#ffffff',border:'1px solid #e2e8f0',borderRadius:'8px',padding:'12px',marginBottom:'12px'}}>
+                      <div style={{fontWeight:700,fontSize:'13px',color:'#7c3aed',marginBottom:'8px',display:'flex',alignItems:'center',gap:'6px'}}>
+                        <User size={15}/> 2. حساب المحاسب المالي (Accountant)
+                      </div>
+                      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'10px',marginBottom:'8px'}}>
+                        <label>
+                          <span>بريد / اسم مستخدم المحاسب</span>
+                          <input
+                            type="text"
+                            dir="ltr"
+                            placeholder="accountant@shako.com"
+                            value={draft.accountantEmail||''}
+                            onChange={e=>setDraft({...draft,accountantEmail:e.target.value})}
+                          />
+                        </label>
+                        <label>
+                          <span>تعيين كلمة مرور جديدة للمحاسب</span>
+                          <input
+                            type="text"
+                            dir="ltr"
+                            placeholder="اتركه فارغاً للإبقاء على الحالية"
+                            value={draft.accountantPassword||''}
+                            onChange={e=>setDraft({...draft,accountantPassword:e.target.value})}
+                          />
+                        </label>
+                      </div>
+                      <div style={{display:'flex',gap:'8px',flexWrap:'wrap',alignItems:'center'}}>
                         <button
                           type="button"
                           className="plain-button"
-                          style={{fontSize:'11px',gap:'4px'}}
-                          onClick={()=>copyPassword(draft.resetPassword)}
+                          style={{fontSize:'11.5px',padding:'4px 8px'}}
+                          onClick={()=>setDraft({...draft,accountantPassword:'123456'})}
                         >
-                          {copiedPass?<Check size={14} color="#16a34a"/>:<Copy size={14}/>}
-                          <span>{copiedPass?'تم النسخ':'نسخ'}</span>
+                          🔑 كلمة سريعة (123456)
                         </button>
+                        {draft.accountantPassword && (
+                          <button
+                            type="button"
+                            className="plain-button"
+                            style={{fontSize:'11.5px',color:'#dc2626',padding:'4px 8px'}}
+                            onClick={()=>setDraft({...draft,accountantPassword:''})}
+                          >
+                            إلغاء
+                          </button>
+                        )}
                       </div>
-                    )}
+                    </div>
+
+                    {/* 3. Booking Officer Account */}
+                    <div style={{background:'#ffffff',border:'1px solid #e2e8f0',borderRadius:'8px',padding:'12px'}}>
+                      <div style={{fontWeight:700,fontSize:'13px',color:'#059669',marginBottom:'8px',display:'flex',alignItems:'center',gap:'6px'}}>
+                        <User size={15}/> 3. حساب موظف الحجز والتذاكر (Booking Officer)
+                      </div>
+                      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'10px',marginBottom:'8px'}}>
+                        <label>
+                          <span>بريد / اسم مستخدم موظف الحجز</span>
+                          <input
+                            type="text"
+                            dir="ltr"
+                            placeholder="booking@shako.com"
+                            value={draft.bookingEmail||''}
+                            onChange={e=>setDraft({...draft,bookingEmail:e.target.value})}
+                          />
+                        </label>
+                        <label>
+                          <span>تعيين كلمة مرور جديدة لموظف الحجز</span>
+                          <input
+                            type="text"
+                            dir="ltr"
+                            placeholder="اتركه فارغاً للإبقاء على الحالية"
+                            value={draft.bookingPassword||''}
+                            onChange={e=>setDraft({...draft,bookingPassword:e.target.value})}
+                          />
+                        </label>
+                      </div>
+                      <div style={{display:'flex',gap:'8px',flexWrap:'wrap',alignItems:'center'}}>
+                        <button
+                          type="button"
+                          className="plain-button"
+                          style={{fontSize:'11.5px',padding:'4px 8px'}}
+                          onClick={()=>setDraft({...draft,bookingPassword:'123456'})}
+                        >
+                          🔑 كلمة سريعة (123456)
+                        </button>
+                        {draft.bookingPassword && (
+                          <button
+                            type="button"
+                            className="plain-button"
+                            style={{fontSize:'11.5px',color:'#dc2626',padding:'4px 8px'}}
+                            onClick={()=>setDraft({...draft,bookingPassword:''})}
+                          >
+                            إلغاء
+                          </button>
+                        )}
+                      </div>
+                    </div>
                   </div>
                 )}
 
@@ -849,6 +1025,119 @@ export function PlatformPanel(){
               </div>
             </form>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* OWNER CREDENTIALS DIALOG */}
+      <Dialog open={ownerSecurityOpen} onOpenChange={open=>!open&&setOwnerSecurityOpen(false)}>
+        <DialogContent className="modal" style={{maxWidth:'500px',direction:'rtl',fontFamily:'"Segoe UI", Tahoma, Arial, sans-serif'}}>
+          <DialogTitle style={{display:'flex',alignItems:'center',gap:'8px',fontSize:'18px',fontWeight:800,color:'#b45309',borderBottom:'2px solid #f59e0b',paddingBottom:'10px'}}>
+            <KeyRound size={22} color="#d97706"/>
+            <span>تعديل بيانات دخول مالك المنصة</span>
+          </DialogTitle>
+          <DialogDescription style={{fontSize:'13px',color:'#64748b',marginTop:'6px'}}>
+            يمكنك هنا كمالك رئيسي للمنظومة تغيير اسم المستخدم وكلمة المرور الخاصة ببوابة المالك بأمان تام.
+          </DialogDescription>
+
+          <form onSubmit={handleSaveOwnerCredentials} style={{marginTop:'16px',display:'flex',flexDirection:'column',gap:'14px'}}>
+            <label style={{display:'flex',flexDirection:'column',gap:'6px',fontSize:'13px',fontWeight:600,color:'#1e293b'}}>
+              <span>اسم مستخدم المالك (Username) *</span>
+              <input
+                type="text"
+                dir="ltr"
+                required
+                value={ownerUsername}
+                onChange={e=>setOwnerUsername(e.target.value)}
+                placeholder="مثال: owner أو اسمك المفضل"
+                style={{padding:'10px 12px',borderRadius:'8px',border:'1px solid #cbd5e1',fontSize:'14px'}}
+              />
+              <small style={{fontSize:'11.5px',color:'#64748b',fontWeight:400}}>
+                هذا هو الاسم الذي ستدخله في شاشة الدخول (بوابة مالك المنصة).
+              </small>
+            </label>
+
+            <label style={{display:'flex',flexDirection:'column',gap:'6px',fontSize:'13px',fontWeight:600,color:'#1e293b'}}>
+              <span>الاسم المعروض (Display Name)</span>
+              <input
+                type="text"
+                value={ownerDisplayName}
+                onChange={e=>setOwnerDisplayName(e.target.value)}
+                placeholder="مثال: مالك المنصة"
+                style={{padding:'10px 12px',borderRadius:'8px',border:'1px solid #cbd5e1',fontSize:'14px'}}
+              />
+            </label>
+
+            <label style={{display:'flex',flexDirection:'column',gap:'6px',fontSize:'13px',fontWeight:600,color:'#1e293b'}}>
+              <span>البريد الإلكتروني للتعافي</span>
+              <input
+                type="email"
+                dir="ltr"
+                value={ownerEmail}
+                onChange={e=>setOwnerEmail(e.target.value)}
+                placeholder="owner@shako.com"
+                style={{padding:'10px 12px',borderRadius:'8px',border:'1px solid #cbd5e1',fontSize:'14px'}}
+              />
+            </label>
+
+            <div style={{background:'#fffbeb',border:'1px solid #fde68a',borderRadius:'10px',padding:'14px',display:'flex',flexDirection:'column',gap:'10px'}}>
+              <div style={{fontWeight:700,fontSize:'13px',color:'#92400e',display:'flex',alignItems:'center',gap:'6px'}}>
+                <Lock size={16}/> كلمة المرور الجديدة لمالك المنصة
+              </div>
+              <label style={{display:'flex',flexDirection:'column',gap:'4px',fontSize:'12.5px',fontWeight:600,color:'#78350f'}}>
+                <span>كلمة المرور الجديدة</span>
+                <input
+                  type={ownerShowPass?'text':'password'}
+                  dir="ltr"
+                  minLength={6}
+                  value={ownerNewPassword}
+                  onChange={e=>setOwnerNewPassword(e.target.value)}
+                  placeholder="اتركها فارغة للإبقاء على الحالية دون تغيير"
+                  style={{padding:'9px 12px',borderRadius:'6px',border:'1px solid #fcd34d',background:'#ffffff',fontSize:'14px'}}
+                />
+              </label>
+
+              {ownerNewPassword && (
+                <label style={{display:'flex',flexDirection:'column',gap:'4px',fontSize:'12.5px',fontWeight:600,color:'#78350f'}}>
+                  <span>تأكيد كلمة المرور الجديدة *</span>
+                  <input
+                    type={ownerShowPass?'text':'password'}
+                    dir="ltr"
+                    required
+                    value={ownerConfirmPassword}
+                    onChange={e=>setOwnerConfirmPassword(e.target.value)}
+                    placeholder="أعد كتابة كلمة المرور للتأكيد"
+                    style={{padding:'9px 12px',borderRadius:'6px',border:'1px solid #fcd34d',background:'#ffffff',fontSize:'14px'}}
+                  />
+                </label>
+              )}
+
+              {ownerNewPassword && (
+                <label style={{display:'flex',alignItems:'center',gap:'6px',fontSize:'12px',color:'#92400e',cursor:'pointer',userSelect:'none'}}>
+                  <input type="checkbox" checked={ownerShowPass} onChange={e=>setOwnerShowPass(e.target.checked)}/>
+                  <span>إظهار أحرف كلمة المرور</span>
+                </label>
+              )}
+            </div>
+
+            <div style={{display:'flex',justifyContent:'flex-end',gap:'8px',marginTop:'8px'}}>
+              <button
+                type="button"
+                className="plain-button"
+                onClick={()=>setOwnerSecurityOpen(false)}
+                disabled={ownerSaving}
+              >
+                إلغاء
+              </button>
+              <button
+                type="submit"
+                className="blue-button"
+                disabled={ownerSaving}
+                style={{background:'#d97706',borderColor:'#d97706',color:'#ffffff',fontWeight:700}}
+              >
+                {ownerSaving?'جارٍ الحفظ…':'حفظ بيانات المالك الجديدة'}
+              </button>
+            </div>
+          </form>
         </DialogContent>
       </Dialog>
     </main>

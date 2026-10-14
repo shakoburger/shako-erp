@@ -18,9 +18,14 @@ export async function POST(req: Request) {
     const db = platformDB();
     const maxAge = remember ? 30 * 24 * 3600 : 8 * 3600; // 30 days or 8 hours
 
-    // Resolve owner ID from system_settings
-    const sysRow = await db.prepare('SELECT owner_id FROM system_settings WHERE id = 1').first<any>();
+    // Resolve owner ID and ownerAuth credentials from system_settings
+    const sysRow = await db.prepare('SELECT owner_id, payload FROM system_settings WHERE id = 1').first<any>();
     const ownerId = sysRow?.owner_id || 'local_seedy';
+    let sysPayload: any = {};
+    try {
+      sysPayload = sysRow?.payload ? JSON.parse(sysRow.payload) : {};
+    } catch {}
+    const ownerAuth = sysPayload?.ownerAuth;
 
     let authenticatedUser: {
       userId: string;
@@ -34,21 +39,35 @@ export async function POST(req: Request) {
     let agencySessionToken: string | null = null;
 
     // 1. Check if Platform Owner
+    const customOwnerUser = (ownerAuth?.username || 'owner').toLowerCase().trim();
+    const customOwnerEmail = (ownerAuth?.email || 'owner@shako.com').toLowerCase().trim();
     const isOwnerLogin =
+      username === customOwnerUser ||
       username === 'owner' ||
+      username === customOwnerEmail ||
       username === 'owner@shako.com' ||
       username === 'seedy@sites.test';
 
-    if (isOwnerLogin && (password === 'admin123' || password === '123456' || password === 'owner123' || password === 'admin')) {
-      authenticatedUser = {
-        userId: ownerId,
-        email: 'owner@shako.com',
-        displayName: 'مالك المنصة الأساسي (System Owner)',
-        role: 'owner',
-        agencyId: legacyAgencyId,
-        isOwner: true,
-        redirectTo: '/owner',
-      };
+    if (isOwnerLogin) {
+      let isOwnerPasswordValid = false;
+      if (ownerAuth?.passwordHash && ownerAuth?.passwordSalt) {
+        isOwnerPasswordValid = await passwordMatches(password, ownerAuth.passwordSalt, ownerAuth.passwordHash);
+      } else {
+        // Fallback default passwords if custom password has not been set yet
+        isOwnerPasswordValid = (password === 'admin123' || password === '123456' || password === 'owner123' || password === 'admin');
+      }
+
+      if (isOwnerPasswordValid) {
+        authenticatedUser = {
+          userId: ownerId,
+          email: ownerAuth?.email || 'owner@shako.com',
+          displayName: ownerAuth?.name || 'مالك المنصة الأساسي (System Owner)',
+          role: 'owner',
+          agencyId: legacyAgencyId,
+          isOwner: true,
+          redirectTo: '/owner',
+        };
+      }
     }
 
     // 2. Check if Agency Admin (Manager)
@@ -74,8 +93,8 @@ export async function POST(req: Request) {
     // 3. Check database `members` table for matching account
     if (!authenticatedUser) {
       const member = await db
-        .prepare('SELECT * FROM members WHERE (LOWER(email) = ? OR LOWER(email) LIKE ?) AND active = 1')
-        .bind(username, `${username}@%`)
+        .prepare('SELECT * FROM members WHERE (LOWER(email) = ? OR LOWER(email) LIKE ? OR LOWER(name) = ? OR LOWER(user_id) = ?) AND active = 1')
+        .bind(username, `${username}@%`, username, username)
         .first<any>();
 
       if (member) {

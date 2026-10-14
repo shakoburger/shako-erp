@@ -31,43 +31,18 @@ export function LoginPage({ onLoginSuccess, returnTo = '/' }: LoginPageProps) {
   // Portal Tab: 'owner' (مالك ومزود المنصة) vs 'agency' (الوكالة المشتركة التي اشترت النظام)
   const [portalMode, setPortalMode] = useState<'owner' | 'agency'>('owner');
 
-  const [username, setUsername] = useState('owner');
-  const [password, setPassword] = useState('admin123');
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [remember, setRemember] = useState(true);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [agencyRoleSelected, setAgencyRoleSelected] = useState<'admin' | 'accountant' | 'booking'>('admin');
 
   function handleSwitchPortal(mode: 'owner' | 'agency') {
     setPortalMode(mode);
     setError('');
-    if (mode === 'owner') {
-      setUsername('owner');
-      setPassword('admin123');
-    } else {
-      setUsername('admin');
-      setPassword('admin123');
-      setAgencyRoleSelected('admin');
-    }
-  }
-
-  function handleSelectAgencyRole(role: 'admin' | 'accountant' | 'booking') {
-    setAgencyRoleSelected(role);
-    setError('');
-    if (role === 'admin') {
-      setUsername('admin');
-      setPassword('admin123');
-      toast.info('تم تجهيز بيانات مدير الوكالة (الآدمن المشترك الذي اشترى النظام)');
-    } else if (role === 'accountant') {
-      setUsername('accountant');
-      setPassword('123456');
-      toast.info('تم تجهيز بيانات المحاسب المالي في الوكالة');
-    } else {
-      setUsername('booking');
-      setPassword('123456');
-      toast.info('تم تجهيز بيانات موظف الحجز والتذاكر في الوكالة');
-    }
+    setUsername('');
+    setPassword('');
   }
 
   async function handleLogin(e: React.FormEvent) {
@@ -338,78 +313,9 @@ export function LoginPage({ onLoginSuccess, returnTo = '/' }: LoginPageProps) {
               <Building2 size={16} />
               <span>خاص بالوكالة التي اشترت واشتركت في المنظومة (Agency Client)</span>
             </div>
-            <p style={{ margin: '0 0 10px 0', fontSize: '11.5px', color: '#cbd5e1' }}>
-              هنا يدخل فريق عمل الوكالة المشتركة (مدير الوكالة الذي اشترى النظام "الآدمن"، المحاسب المالي، وموظف الحجز) للعمل على تذاكر وحسابات وكالتهم.
+            <p style={{ margin: 0, fontSize: '11.5px', color: '#cbd5e1' }}>
+              هنا يقوم فريق عمل الوكالة المشتركة (مدير الوكالة، المحاسب المالي، وموظف الحجز) بإدخال اسم المستخدم وكلمة المرور المحددة لهم للعمل على النظام.
             </p>
-
-            {/* Role selector inside agency */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '6px' }}>
-              <button
-                type="button"
-                onClick={() => handleSelectAgencyRole('admin')}
-                style={{
-                  background: agencyRoleSelected === 'admin' ? 'rgba(56, 189, 248, 0.25)' : 'rgba(255, 255, 255, 0.05)',
-                  border: `1px solid ${agencyRoleSelected === 'admin' ? '#38bdf8' : 'rgba(255, 255, 255, 0.1)'}`,
-                  borderRadius: '8px',
-                  padding: '7px 4px',
-                  color: agencyRoleSelected === 'admin' ? '#ffffff' : '#94a3b8',
-                  fontSize: '11.5px',
-                  fontWeight: 700,
-                  cursor: 'pointer',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  alignItems: 'center',
-                  gap: '4px',
-                }}
-              >
-                <Briefcase size={15} color="#38bdf8" />
-                <span>مدير الوكالة (الآدمن)</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => handleSelectAgencyRole('accountant')}
-                style={{
-                  background: agencyRoleSelected === 'accountant' ? 'rgba(168, 85, 247, 0.25)' : 'rgba(255, 255, 255, 0.05)',
-                  border: `1px solid ${agencyRoleSelected === 'accountant' ? '#a855f7' : 'rgba(255, 255, 255, 0.1)'}`,
-                  borderRadius: '8px',
-                  padding: '7px 4px',
-                  color: agencyRoleSelected === 'accountant' ? '#ffffff' : '#94a3b8',
-                  fontSize: '11.5px',
-                  fontWeight: 700,
-                  cursor: 'pointer',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  alignItems: 'center',
-                  gap: '4px',
-                }}
-              >
-                <Calculator size={15} color="#a855f7" />
-                <span>المحاسب المالي</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => handleSelectAgencyRole('booking')}
-                style={{
-                  background: agencyRoleSelected === 'booking' ? 'rgba(16, 185, 129, 0.25)' : 'rgba(255, 255, 255, 0.05)',
-                  border: `1px solid ${agencyRoleSelected === 'booking' ? '#10b981' : 'rgba(255, 255, 255, 0.1)'}`,
-                  borderRadius: '8px',
-                  padding: '7px 4px',
-                  color: agencyRoleSelected === 'booking' ? '#ffffff' : '#94a3b8',
-                  fontSize: '11.5px',
-                  fontWeight: 700,
-                  cursor: 'pointer',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  alignItems: 'center',
-                  gap: '4px',
-                }}
-              >
-                <Ticket size={15} color="#10b981" />
-                <span>موظف الحجز</span>
-              </button>
-            </div>
           </div>
         )}
 
@@ -456,7 +362,7 @@ export function LoginPage({ onLoginSuccess, returnTo = '/' }: LoginPageProps) {
                 required
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
-                placeholder={portalMode === 'owner' ? 'owner' : 'admin, accountant, أو booking'}
+                placeholder={portalMode === 'owner' ? 'أدخل اسم مستخدم المالك (مثال: owner)' : 'أدخل اسم المستخدم أو البريد الإلكتروني'}
                 style={{
                   width: '100%',
                   height: '46px',

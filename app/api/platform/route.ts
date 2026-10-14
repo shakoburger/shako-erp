@@ -114,7 +114,11 @@ export async function PUT(req:Request){
       adminName:z.string().trim().min(1).max(100).optional().or(z.literal('')),
       resetPassword:z.string().min(6).max(128).optional().or(z.literal('')),
       forcePasswordChange:z.boolean().optional(),
-      ownerBackupAllowed:z.boolean().optional()
+      ownerBackupAllowed:z.boolean().optional(),
+      accountantEmail:z.string().optional().or(z.literal('')),
+      accountantPassword:z.string().min(6).max(128).optional().or(z.literal('')),
+      bookingEmail:z.string().optional().or(z.literal('')),
+      bookingPassword:z.string().min(6).max(128).optional().or(z.literal(''))
     }).strict().parse(await body(req));
 
     const old=await c.database.prepare('SELECT * FROM platform_agencies WHERE id=?').bind(b.id).first<Agency>();
@@ -166,6 +170,34 @@ export async function PUT(req:Request){
     }else if(targetEmail!==old.admin_email.toLowerCase()){
       // Just update email in tenant members if exists
       await tenantDb.prepare('UPDATE members SET email=? WHERE email=?').bind(targetEmail,old.admin_email.toLowerCase()).run();
+    }
+
+    // 4. If accountant password was requested
+    if(b.accountantPassword&&b.accountantPassword.trim()){
+      const pwd=await passwordRecord(b.accountantPassword.trim());
+      const accEmail=(b.accountantEmail&&b.accountantEmail.trim()?b.accountantEmail.trim().toLowerCase():'accountant@shako.com');
+      const existingAcc=await tenantDb.prepare("SELECT * FROM members WHERE role='accountant' OR email=?").bind(accEmail).first<any>();
+      if(existingAcc){
+        await tenantDb.prepare('UPDATE members SET email=?,password_hash=?,password_salt=?,password_version=password_version+1,active=1,revision=revision+1 WHERE email=?').bind(accEmail,pwd.hash,pwd.salt,existingAcc.email).run();
+      }else{
+        await tenantDb.prepare('INSERT INTO members (email,name,role,permissions,active,created_at,password_hash,password_salt,password_version,force_password_change) VALUES (?,?,?,?,1,?,?,?,1,0)').bind(accEmail,'المحاسب المالي','accountant',JSON.stringify(roleAccess('accountant')),now,pwd.hash,pwd.salt).run();
+      }
+      await tenantDb.prepare('DELETE FROM agency_sessions WHERE email=?').bind(accEmail).run();
+      await platformAudit(c.database,c.user.email,b.id,'تعيين كلمة مرور لحساب المحاسب المالي بالوكالة',null,{email:accEmail}).run();
+    }
+
+    // 5. If booking officer password was requested
+    if(b.bookingPassword&&b.bookingPassword.trim()){
+      const pwd=await passwordRecord(b.bookingPassword.trim());
+      const bkEmail=(b.bookingEmail&&b.bookingEmail.trim()?b.bookingEmail.trim().toLowerCase():'booking@shako.com');
+      const existingBk=await tenantDb.prepare("SELECT * FROM members WHERE role='booking' OR email=?").bind(bkEmail).first<any>();
+      if(existingBk){
+        await tenantDb.prepare('UPDATE members SET email=?,password_hash=?,password_salt=?,password_version=password_version+1,active=1,revision=revision+1 WHERE email=?').bind(bkEmail,pwd.hash,pwd.salt,existingBk.email).run();
+      }else{
+        await tenantDb.prepare('INSERT INTO members (email,name,role,permissions,active,created_at,password_hash,password_salt,password_version,force_password_change) VALUES (?,?,?,?,1,?,?,?,1,0)').bind(bkEmail,'موظف الحجز والتذاكر','booking',JSON.stringify(roleAccess('booking')),now,pwd.hash,pwd.salt).run();
+      }
+      await tenantDb.prepare('DELETE FROM agency_sessions WHERE email=?').bind(bkEmail).run();
+      await platformAudit(c.database,c.user.email,b.id,'تعيين كلمة مرور لحساب موظف الحجز بالوكالة',null,{email:bkEmail}).run();
     }
 
     return json({ok:true,adminEmail:targetEmail});
