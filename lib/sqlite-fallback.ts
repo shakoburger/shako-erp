@@ -250,78 +250,76 @@ async function getDb(): Promise<any> {
 export function getSqliteD1Database(): any {
   if (cachedD1) return cachedD1;
 
+  async function executeStatement(sqlToExec: string, params: any[]): Promise<{ results: any[]; success: boolean; meta: { changes: number } }> {
+    const instance = await getDb();
+    const trimmed = sqlToExec.trim();
+    const isSelect = /^(SELECT|PRAGMA|WITH\s+.*\bSELECT)\b/i.test(trimmed);
+
+    if (instance.type === 'node') {
+      const stmt = instance.db.prepare(sqlToExec);
+      if (isSelect) {
+        const rows = stmt.all(...params);
+        return { results: rows as any[], success: true, meta: { changes: 0 } };
+      } else {
+        const info = stmt.run(...params);
+        return { results: [], success: true, meta: { changes: Number(info.changes || 0) } };
+      }
+    } else {
+      // sqljs
+      if (isSelect) {
+        const stmt = instance.db.prepare(sqlToExec);
+        const results: any[] = [];
+        try {
+          if (params.length) stmt.bind(params);
+          while (stmt.step()) {
+            results.push(stmt.getAsObject());
+          }
+          return { results, success: true, meta: { changes: 0 } };
+        } finally {
+          stmt.free();
+        }
+      } else {
+        try {
+          if (params.length) {
+            instance.db.run(sqlToExec, params);
+          } else {
+            instance.db.run(sqlToExec);
+          }
+          const changes = instance.db.getRowsModified();
+          if (!instance.inTransaction) {
+            persistDb(instance);
+          }
+          return { results: [], success: true, meta: { changes } };
+        } catch (e) {
+          console.error('SQL run error on query:', sqlToExec, e);
+          throw e;
+        }
+      }
+    }
+  }
+
   function wrapStatement(sql: string, boundParams: any[] = []): any {
     return {
       bind(...values: any[]) {
         return wrapStatement(sql, values);
       },
       async first<T = unknown>(col?: string): Promise<T | null> {
-        const instance = await getDb();
-        if (instance.type === 'node') {
-          const stmt = instance.db.prepare(sql);
-          const row = stmt.get(...boundParams) as any;
-          if (!row) return null;
-          if (col !== undefined) return row[col];
-          return row as T;
-        } else {
-          const stmt = instance.db.prepare(sql);
-          try {
-            if (boundParams.length) stmt.bind(boundParams);
-            if (stmt.step()) {
-              const row = stmt.getAsObject();
-              if (col !== undefined) return row[col];
-              return row as T;
-            }
-            return null;
-          } finally {
-            stmt.free();
-          }
-        }
+        const res = await executeStatement(sql, boundParams);
+        const row = res.results[0] as any;
+        if (!row) return null;
+        if (col !== undefined) return row[col];
+        return row as T;
       },
-      async all<T = unknown>(): Promise<{ results: T[] }> {
-        const instance = await getDb();
-        if (instance.type === 'node') {
-          const stmt = instance.db.prepare(sql);
-          const rows = stmt.all(...boundParams) as T[];
-          return { results: rows };
-        } else {
-          const stmt = instance.db.prepare(sql);
-          const results: any[] = [];
-          try {
-            if (boundParams.length) stmt.bind(boundParams);
-            while (stmt.step()) {
-              results.push(stmt.getAsObject());
-            }
-            return { results };
-          } finally {
-            stmt.free();
-          }
-        }
+      async all<T = unknown>(): Promise<{ results: T[]; success: boolean; meta: { changes: number } }> {
+        const res = await executeStatement(sql, boundParams);
+        return res as any;
       },
-      async run<T = unknown>(): Promise<{ meta: { changes: number } }> {
-        const instance = await getDb();
-        if (instance.type === 'node') {
-          const stmt = instance.db.prepare(sql);
-          const info = stmt.run(...boundParams);
-          return { meta: { changes: Number(info.changes || 0) } };
-        } else {
-          try {
-            if (boundParams.length) {
-              instance.db.run(sql, boundParams);
-            } else {
-              instance.db.run(sql);
-            }
-            const changes = instance.db.getRowsModified();
-            persistDb(instance);
-            return { meta: { changes } };
-          } catch (e) {
-            console.error('SQL run error on query:', sql, e);
-            throw e;
-          }
-        }
+      async run<T = unknown>(): Promise<{ results: T[]; success: boolean; meta: { changes: number } }> {
+        const res = await executeStatement(sql, boundParams);
+        return res as any;
       },
       async raw<T = unknown>(): Promise<T[]> {
-        const res = await this.all();
+        const res = await executeStatement(sql, boundParams);
         return res.results as T[];
       }
     };
