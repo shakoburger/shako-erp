@@ -13,9 +13,9 @@ export async function GET(){
       revision:c.revision,
       owner:c.owner,
       access:c.access,
-      passwordRequired:c.passwordRequired,
-      passwordChangeRequired:!!c.member?.force_password_change&&c.sessionValid,
-      passwordMissing:!!c.member&&!c.member.password_hash,
+      passwordRequired:false,
+      passwordChangeRequired:false,
+      passwordMissing:false,
       agency:{id:c.agency.id,name:c.agency.name},
       subscription:c.subscription,
       user:{name:c.user.displayName,email:c.user.email}

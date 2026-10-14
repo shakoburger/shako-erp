@@ -1,4 +1,4 @@
-import { headers } from "next/headers";
+import { headers, cookies } from "next/headers";
 import { redirect } from "next/navigation";
 
 export type ChatGPTUser = {
@@ -6,6 +6,7 @@ export type ChatGPTUser = {
   displayName: string;
   email: string;
   fullName: string | null;
+  role?: string;
 };
 
 const USER_ID_HEADER = "oai-authenticated-user-id";
@@ -19,6 +20,42 @@ const SIGN_OUT_PATH = "/signout-with-chatgpt";
 const CALLBACK_PATH = "/callback";
 
 export async function getChatGPTUser(): Promise<ChatGPTUser | null> {
+  const cookieStore = await cookies();
+
+  // 1. Check custom Shako Auth User Session Cookie
+  const authUserCookie = cookieStore.get("shako_auth_user")?.value;
+  if (authUserCookie) {
+    try {
+      let raw = authUserCookie;
+      try {
+        raw = decodeURIComponent(authUserCookie);
+      } catch {}
+      let decoded: any = null;
+      try {
+        decoded = JSON.parse(raw);
+      } catch {
+        try {
+          decoded = JSON.parse(Buffer.from(raw, "base64").toString("utf-8"));
+        } catch {}
+      }
+      if (decoded && decoded.userId && decoded.email) {
+        return {
+          userId: decoded.userId,
+          displayName: decoded.displayName || decoded.email,
+          email: decoded.email,
+          fullName: decoded.fullName || decoded.displayName || null,
+          role: decoded.role,
+        };
+      }
+    } catch {}
+  }
+
+  // 2. Check local dev auth cookie - if not explicitly set to '1', user is logged out!
+  const sitesLocalAuth = cookieStore.get("__sites_local_auth")?.value;
+  if (!sitesLocalAuth || sitesLocalAuth === "0" || sitesLocalAuth === "logged_out") {
+    return null;
+  }
+
   const requestHeaders = await headers();
   const userId = requestHeaders.get(USER_ID_HEADER);
   const email = requestHeaders.get(USER_EMAIL_HEADER);

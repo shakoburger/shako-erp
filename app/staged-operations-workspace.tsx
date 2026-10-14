@@ -509,8 +509,9 @@ export function StagedOperationsWorkspace({
           if (extracted.airline) next.airline = extracted.airline;
 
           // عمولة التذكرة المستخرجة: لا نملأ العمولة بكامل قيمة التذكرة أبداً!
-          if (extracted.commission && Number(extracted.commission) > 0) {
-            const extComm = Number(extracted.commission);
+          const rawComm = (extracted as any).commission;
+          if (rawComm && Number(rawComm) > 0) {
+            const extComm = Number(rawComm);
             next.commAmount = String(extComm);
             next.commType = 'internal';
             if (extractedAmount && Number(extractedAmount) > 0) {

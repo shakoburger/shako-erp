@@ -1,6 +1,6 @@
 'use client';
 import {useEffect,useState} from 'react';
-import {Building2,ShieldCheck,Plus,RefreshCw,Download,Settings,Archive,ExternalLink,KeyRound,Copy,Check,CheckCircle2,Clock} from 'lucide-react';
+import {Building2,ShieldCheck,Plus,RefreshCw,Download,Settings,Archive,ExternalLink,KeyRound,Copy,Check,CheckCircle2,Clock,Crown,Power,DollarSign,Eye} from 'lucide-react';
 import {Dialog,DialogContent,DialogTitle,DialogDescription} from '@/components/ui/dialog';
 import {Toaster,toast} from 'sonner';
 import {api,download} from './erp-system';
@@ -138,7 +138,7 @@ export function PlatformPanel(){
     setBusy(true);
     try{
       await api('/api/agencies',{method:'POST',body:JSON.stringify({agencyId:a.id})});
-      window.location.assign('/');
+      window.location.assign('/?preview=agency');
     }catch(e:any){
       toast.error(e.message);
       setBusy(false);
@@ -190,51 +190,165 @@ export function PlatformPanel(){
     setTimeout(()=>setCopiedPass(false),2000);
   }
 
+  async function handleLogout(){
+    try{
+      await fetch('/api/auth/logout',{method:'POST'});
+    }catch{}
+    window.location.assign('/login');
+  }
+
   if(error)return (
-    <main className="platform-shell">
+    <main className="platform-shell" dir="rtl">
       <Toaster richColors/>
-      <section className="settings-card">
-        <ShieldCheck size={32}/>
-        <h1>لوحة مالك المنصة</h1>
-        <p role="alert">{error}</p>
-        <button className="blue-button" onClick={load}>إعادة المحاولة</button>
-        <a href="/signin-with-chatgpt?return_to=/owner" className="plain-button">تسجيل الدخول</a>
-        <a href="/" className="plain-button">العودة للوكالة</a>
+      <section className="settings-card" style={{maxWidth:'550px',margin:'80px auto',textAlign:'center',padding:'36px'}}>
+        <ShieldCheck size={48} color="#dc2626" style={{margin:'0 auto 16px'}}/>
+        <h1 style={{fontSize:'22px',fontWeight:800,marginBottom:'8px'}}>لوحة مالك المنصة المركزية</h1>
+        <p role="alert" style={{color:'#64748b',lineHeight:1.7,marginBottom:'24px'}}>{error}</p>
+        <div style={{display:'flex',justifyContent:'center',gap:'10px'}}>
+          <button className="blue-button" onClick={load}>إعادة المحاولة</button>
+          <a href="/" className="plain-button">العودة للوكالة</a>
+          <button className="plain-button" onClick={handleLogout}>تسجيل الخروج</button>
+        </div>
       </section>
     </main>
   );
 
-  if(!data)return <main className="platform-shell"><p className="empty-row">جارٍ تحميل الوكالات…</p></main>;
+  if(!data)return <main className="platform-shell" dir="rtl"><p className="empty-row">جارٍ تحميل منصة المالك والوكالات…</p></main>;
 
   const agencies=data.agencies.filter((a:any)=>
     (a.name+' '+(a.admin_email||a.adminEmail||'')).toLowerCase().includes(query.toLowerCase())&&
     (filter==='all'||filter==='overdue'&&a.overdue||a.state===filter||a.payment_status===filter)
   );
 
-  return (
-    <main className="platform-shell" dir="rtl">
-      <Toaster position="top-center" richColors dir="rtl"/>
-      <header className="platform-heading">
-        <div>
-          <span className="owner-tag"><ShieldCheck size={16}/> مالك المنصة</span>
-          <h1>الوكالات والاشتراكات</h1>
-          <p>إدارة التفعيل والسداد والاشتراكات والنسخ الاحتياطية المعتمدة لجميع الوكالات.</p>
-        </div>
-        <a className="plain-button" href="/">العودة إلى الوكالة</a>
-      </header>
+  const activeAgencies = data.agencies.filter((a:any)=>a.state==='active');
+  const totalUSD = activeAgencies.reduce((acc:number,a:any)=>acc+(a.currency==='USD'?(a.fee_minor||0)/100:0),0);
+  const totalEGP = activeAgencies.reduce((acc:number,a:any)=>acc+(a.currency==='EGP'?(a.fee_minor||0)/100:0),0);
 
-      <div className="platform-stats">
-        {[
-          ['كل الوكالات',data.agencies.length],
-          ['المفعلة',data.agencies.filter((a:any)=>a.state==='active').length],
-          ['غير المسددة',data.agencies.filter((a:any)=>(a.payment_status!=='paid'||a.overdue)&&a.state!=='archived').length],
-          ['المؤرشفة',data.agencies.filter((a:any)=>a.state==='archived').length]
-        ].map(([label,count])=>(
-          <section className="settings-card" key={label}>
-            <span>{label}</span>
-            <strong>{count}</strong>
-          </section>
-        ))}
+  return (
+    <main className="platform-shell" dir="rtl" style={{padding:'24px 28px',maxWidth:'1600px',margin:'0 auto'}}>
+      <Toaster position="top-center" richColors dir="rtl"/>
+
+      {/* Executive SuperAdmin Top Banner */}
+      <div style={{
+        background: 'linear-gradient(135deg, #0b1329 0%, #172554 60%, #1e3a8a 100%)',
+        color: '#ffffff',
+        borderRadius: '18px',
+        padding: '24px 28px',
+        marginBottom: '24px',
+        boxShadow: '0 20px 45px -15px rgba(11, 19, 41, 0.45), 0 0 1px 1px rgba(255, 255, 255, 0.1)',
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        flexWrap: 'wrap',
+        gap: '16px'
+      }}>
+        <div>
+          <div style={{display:'flex',alignItems:'center',gap:'8px',marginBottom:'8px',flexWrap:'wrap'}}>
+            <span style={{
+              background: 'rgba(245, 158, 11, 0.2)',
+              color: '#fbbf24',
+              border: '1px solid rgba(245, 158, 11, 0.5)',
+              borderRadius: '9999px',
+              padding: '4px 12px',
+              fontSize: '12px',
+              fontWeight: 800,
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px'
+            }}>
+              <Crown size={15}/> منصة المالك المركزية | SHAKO SuperAdmin
+            </span>
+            <span style={{fontSize:'12px',color:'#94a3b8'}}>
+              الحساب: <strong style={{color:'#f8fafc'}}>{data.owner?.name || 'مالك النظام'}</strong> ({data.owner?.email || 'owner@shako.com'})
+            </span>
+          </div>
+          <h1 style={{margin:'0 0 6px 0',fontSize:'26px',fontWeight:800,letterSpacing:'-0.5px',color:'#ffffff'}}>
+            إدارة الوكالات والاشتراكات والتراخيص
+          </h1>
+          <p style={{margin:0,fontSize:'13.5px',color:'#cbd5e1',lineHeight:1.6}}>
+            لوحة الإدارة العليا المستقلة لمالك النظام — تفعيل وإيقاف الوكالات، مراقبة الاشتراكات، تعيين التراخيص، والنسخ الاحتياطي العام.
+          </p>
+        </div>
+
+        <div style={{display:'flex',alignItems:'center',gap:'10px',flexWrap:'wrap'}}>
+          <a
+            href="/?preview=agency"
+            className="plain-button"
+            style={{
+              background: 'rgba(255, 255, 255, 0.12)',
+              color: '#ffffff',
+              border: '1px solid rgba(255, 255, 255, 0.25)',
+              padding: '9px 16px',
+              borderRadius: '8px',
+              fontWeight: 700,
+              fontSize: '13px',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px'
+            }}
+            title="الانتقال إلى واجهة الوكالة لمعاينتها كما يراها العميل المشترك"
+          >
+            <Eye size={16}/> معاينة شاشة العميل (الوكالة المشتركة)
+          </a>
+          <button
+            type="button"
+            onClick={handleLogout}
+            style={{
+              background: '#dc2626',
+              color: '#ffffff',
+              border: 'none',
+              padding: '9px 16px',
+              borderRadius: '8px',
+              fontWeight: 700,
+              fontSize: '13px',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              cursor: 'pointer'
+            }}
+            title="تسجيل الخروج من المنصة"
+          >
+            <Power size={16}/> تسجيل الخروج
+          </button>
+        </div>
+      </div>
+
+      <div className="platform-stats" style={{display:'grid',gridTemplateColumns:'repeat(auto-fit, minmax(220px, 1fr))',gap:'14px',marginBottom:'22px'}}>
+        <section className="settings-card" style={{padding:'18px 20px',borderRadius:'12px',border:'1px solid #e2e8f0',background:'#ffffff'}}>
+          <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'8px'}}>
+            <span style={{fontSize:'13px',color:'#64748b',fontWeight:600}}>كل الوكالات</span>
+            <Building2 size={20} color="#0284c7"/>
+          </div>
+          <strong style={{fontSize:'26px',fontWeight:800,color:'#0f172a'}}>{data.agencies.length}</strong>
+        </section>
+
+        <section className="settings-card" style={{padding:'18px 20px',borderRadius:'12px',border:'1px solid #e2e8f0',background:'#ffffff'}}>
+          <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'8px'}}>
+            <span style={{fontSize:'13px',color:'#64748b',fontWeight:600}}>الوكالات المفعلة</span>
+            <CheckCircle2 size={20} color="#16a34a"/>
+          </div>
+          <strong style={{fontSize:'26px',fontWeight:800,color:'#16a34a'}}>{activeAgencies.length}</strong>
+        </section>
+
+        <section className="settings-card" style={{padding:'18px 20px',borderRadius:'12px',border:'1px solid #e2e8f0',background:'#ffffff'}}>
+          <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'8px'}}>
+            <span style={{fontSize:'13px',color:'#64748b',fontWeight:600}}>الموقوفة أو المتأخرة</span>
+            <Clock size={20} color="#d97706"/>
+          </div>
+          <strong style={{fontSize:'26px',fontWeight:800,color:'#d97706'}}>
+            {data.agencies.filter((a:any)=>(a.payment_status!=='paid'||a.overdue)&&a.state!=='archived').length}
+          </strong>
+        </section>
+
+        <section className="settings-card" style={{padding:'18px 20px',borderRadius:'12px',border:'1px solid #e2e8f0',background:'#ffffff'}}>
+          <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'8px'}}>
+            <span style={{fontSize:'13px',color:'#64748b',fontWeight:600}}>الدخل الشهري المحصل</span>
+            <DollarSign size={20} color="#059669"/>
+          </div>
+          <strong style={{fontSize:'18px',fontWeight:800,color:'#059669'}} dir="ltr">
+            {totalUSD>0?`$${totalUSD.toLocaleString()}`:''} {totalEGP>0?`${totalEGP.toLocaleString()} EGP`:''} {totalUSD===0&&totalEGP===0?'0.00':''}
+          </strong>
+        </section>
       </div>
 
       <section className="settings-card">
