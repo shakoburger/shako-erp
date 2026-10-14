@@ -196,13 +196,13 @@ export function AccountStatement({data,ledger}:{data:ReportData;ledger:ReturnTyp
      {/* Movement Financial Overview */}
      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:'8px',marginBottom:'16px'}}>
       <div style={{background:'#eff6ff',border:'1px solid #bfdbfe',borderRadius:'8px',padding:'10px',textAlign:'center'}}>
-       <span style={{fontSize:'11px',color:'#1e40af',display:'block'}}>مطالبات (مدين)</span>
+       <span style={{fontSize:'11px',color:'#1e40af',display:'block'}}>متطلبات</span>
        <b dir="ltr" style={{fontSize:'15px',color:'#1d4ed8'}}>
         {activeEntry?.debitMinor?money(activeEntry.debitMinor):'0.00'}
        </b>
       </div>
       <div style={{background:'#f0fdf4',border:'1px solid #bbf7d0',borderRadius:'8px',padding:'10px',textAlign:'center'}}>
-       <span style={{fontSize:'11px',color:'#166534',display:'block'}}>سداد (دائن)</span>
+       <span style={{fontSize:'11px',color:'#166534',display:'block'}}>سداد</span>
        <b dir="ltr" style={{fontSize:'15px',color:'#15803d'}}>
         {activeEntry?.creditMinor?money(activeEntry.creditMinor):'0.00'}
        </b>

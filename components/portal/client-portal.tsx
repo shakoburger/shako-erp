@@ -657,64 +657,103 @@ export function ClientPortal() {
             ) : statementData ? (
               <div>
                 {/* Summary bar */}
-                <div style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '12px', background: '#f0fdf4', padding: '14px', borderRadius: '8px', border: '1px solid #bbf7d0', marginBottom: '16px'}}>
-                  <div>
-                    <span style={{fontSize: '12px', color: '#166534'}}>الرصيد الافتتاحي:</span>
-                    <b style={{display: 'block', fontSize: '16px', color: '#15803d'}} dir="ltr">{money(statementData.openingMinor)} {stmtCurrency}</b>
+                <div style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))', gap: '12px', marginBottom: '16px'}}>
+                  <div style={{background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '10px', padding: '14px 16px'}}>
+                    <span style={{fontSize: '12px', color: '#64748b', fontWeight: 600}}>الرصيد الافتتاحي:</span>
+                    <b style={{display: 'block', fontSize: '17px', color: '#334155', marginTop: '4px'}} dir="ltr">{money(statementData.openingMinor)} {stmtCurrency}</b>
                   </div>
-                  <div>
-                    <span style={{fontSize: '12px', color: '#166534'}}>إجمالي المطالبات (مدين):</span>
-                    <b style={{display: 'block', fontSize: '16px', color: '#0f766e'}} dir="ltr">{money(statementData.debitMinor)} {stmtCurrency}</b>
+                  <div style={{background: '#fef2f2', border: '1px solid #fecaca', borderRadius: '10px', padding: '14px 16px'}}>
+                    <span style={{fontSize: '12px', color: '#991b1b', fontWeight: 600}}>إجمالي المتطلبات:</span>
+                    <b style={{display: 'block', fontSize: '17px', color: '#dc2626', marginTop: '4px'}} dir="ltr">{money(statementData.debitMinor)} {stmtCurrency}</b>
                   </div>
-                  <div>
-                    <span style={{fontSize: '12px', color: '#166534'}}>إجمالي السدادات (دائن):</span>
-                    <b style={{display: 'block', fontSize: '16px', color: '#2563eb'}} dir="ltr">{money(statementData.creditMinor)} {stmtCurrency}</b>
+                  <div style={{background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '10px', padding: '14px 16px'}}>
+                    <span style={{fontSize: '12px', color: '#166534', fontWeight: 600}}>إجمالي السداد:</span>
+                    <b style={{display: 'block', fontSize: '17px', color: '#16a34a', marginTop: '4px'}} dir="ltr">{money(statementData.creditMinor)} {stmtCurrency}</b>
                   </div>
-                  <div>
-                    <span style={{fontSize: '12px', color: '#166534'}}>الرصيد الختامي:</span>
-                    <b style={{display: 'block', fontSize: '18px', color: statementData.closingMinor > 0 ? '#b91c1c' : '#15803d'}} dir="ltr">
+                  <div style={{background: statementData.closingMinor > 0 ? '#fff1f2' : '#f0fdf4', border: statementData.closingMinor > 0 ? '1px solid #fecdd3' : '1px solid #bbf7d0', borderRadius: '10px', padding: '14px 16px'}}>
+                    <span style={{fontSize: '12px', color: statementData.closingMinor > 0 ? '#9f1239' : '#166534', fontWeight: 600}}>
+                      {statementData.closingMinor > 0 ? 'الرصيد الختامي (مستحق عليك):' : 'الرصيد الختامي:'}
+                    </span>
+                    <b style={{display: 'block', fontSize: '18px', color: statementData.closingMinor > 0 ? '#e11d48' : '#15803d', fontWeight: 800, marginTop: '4px'}} dir="ltr">
                       {money(statementData.closingMinor)} {stmtCurrency}
                     </b>
                   </div>
                 </div>
 
-                <div style={{overflowX: 'auto'}}>
-                  <table style={{width: '100%', borderCollapse: 'collapse', textAlign: 'right', fontSize: '13px'}}>
+                <div style={{overflowX: 'auto', border: '1px solid #e2e8f0', borderRadius: '10px', background: '#ffffff', boxShadow: '0 1px 3px rgba(0,0,0,0.02)'}}>
+                  <table style={{width: '100%', minWidth: '780px', borderCollapse: 'collapse', textAlign: 'right', fontSize: '13px'}}>
                     <thead>
-                      <tr style={{background: '#f1f5f9', borderBottom: '2px solid #cbd5e1', color: '#475569'}}>
-                        <th style={{padding: '10px 12px'}}>التاريخ</th>
-                        <th style={{padding: '10px 12px'}}>البيان</th>
-                        <th style={{padding: '10px 12px'}}>رقم المرجع / الإيصال</th>
-                        <th style={{padding: '10px 12px', textAlign: 'left'}}>مدين</th>
-                        <th style={{padding: '10px 12px', textAlign: 'left'}}>دائن</th>
-                        <th style={{padding: '10px 12px', textAlign: 'left'}}>الرصيد</th>
+                      <tr style={{background: '#f8fafc', borderBottom: '2px solid #e2e8f0', color: '#475569'}}>
+                        <th style={{padding: '12px 14px', width: '115px', whiteSpace: 'nowrap', textAlign: 'center'}}>التاريخ</th>
+                        <th style={{padding: '12px 14px', minWidth: '260px'}}>البيان</th>
+                        <th style={{padding: '12px 14px', width: '125px', whiteSpace: 'nowrap', textAlign: 'center'}}>رقم المرجع / الإيصال</th>
+                        <th style={{padding: '12px 14px', width: '130px', whiteSpace: 'nowrap', textAlign: 'left'}}>المتطلبات</th>
+                        <th style={{padding: '12px 14px', width: '130px', whiteSpace: 'nowrap', textAlign: 'left'}}>السداد</th>
+                        <th style={{padding: '12px 14px', width: '140px', whiteSpace: 'nowrap', textAlign: 'left'}}>الرصيد</th>
                       </tr>
                     </thead>
                     <tbody>
                       {statementData.entries.map((e, idx) => (
-                        <tr key={idx} style={{borderBottom: '1px solid #e2e8f0', background: e.opening ? '#fafaf9' : 'transparent'}}>
-                          <td style={{padding: '10px 12px'}} dir="ltr">{e.date}</td>
-                          <td style={{padding: '10px 12px', fontWeight: e.opening ? 700 : 400}}>{e.description}</td>
-                          <td style={{padding: '10px 12px', color: '#64748b'}} dir="ltr">{e.reference || '—'}</td>
-                          <td style={{padding: '10px 12px', textAlign: 'left', color: e.debitMinor > 0 ? '#b91c1c' : '#94a3b8'}} dir="ltr">
+                        <tr
+                          key={idx}
+                          style={{
+                            borderBottom: '1px solid #f1f5f9',
+                            background: e.opening ? '#f8fafc' : (idx % 2 === 1 ? '#fafafa' : '#ffffff'),
+                            transition: 'background-color 0.15s ease'
+                          }}
+                        >
+                          <td style={{padding: '12px 14px', whiteSpace: 'nowrap', textAlign: 'center', color: '#475569', fontSize: '12px', fontWeight: 500}} dir="ltr">
+                            {e.date}
+                          </td>
+                          <td style={{padding: '12px 14px', fontWeight: e.opening ? 700 : 500, color: e.opening ? '#0f766e' : '#1e293b', lineHeight: '1.6'}}>
+                            {e.description}
+                          </td>
+                          <td style={{padding: '12px 14px', textAlign: 'center', whiteSpace: 'nowrap'}}>
+                            {e.reference ? (
+                              <span style={{display: 'inline-block', padding: '2px 10px', background: '#f1f5f9', color: '#0f766e', borderRadius: '12px', fontWeight: 700, fontSize: '12px', border: '1px solid #e2e8f0'}} dir="ltr">
+                                #{e.reference}
+                              </span>
+                            ) : (
+                              <span style={{color: '#cbd5e1'}}>—</span>
+                            )}
+                          </td>
+                          <td style={{padding: '12px 14px', textAlign: 'left', whiteSpace: 'nowrap', fontWeight: 600, color: e.debitMinor > 0 ? '#dc2626' : '#cbd5e1'}} dir="ltr">
                             {e.debitMinor > 0 ? money(e.debitMinor) : '—'}
                           </td>
-                          <td style={{padding: '10px 12px', textAlign: 'left', color: e.creditMinor > 0 ? '#15803d' : '#94a3b8'}} dir="ltr">
+                          <td style={{padding: '12px 14px', textAlign: 'left', whiteSpace: 'nowrap', fontWeight: 600, color: e.creditMinor > 0 ? '#16a34a' : '#cbd5e1'}} dir="ltr">
                             {e.creditMinor > 0 ? money(e.creditMinor) : '—'}
                           </td>
-                          <td style={{padding: '10px 12px', textAlign: 'left', fontWeight: 700}} dir="ltr">
+                          <td style={{padding: '12px 14px', textAlign: 'left', whiteSpace: 'nowrap', fontWeight: 800, color: e.balanceMinor > 0 ? '#b91c1c' : (e.balanceMinor < 0 ? '#15803d' : '#334155')}} dir="ltr">
                             {money(e.balanceMinor)}
                           </td>
                         </tr>
                       ))}
                       {!statementData.entries.length && (
                         <tr>
-                          <td colSpan={6} style={{padding: '30px', textAlign: 'center', color: '#94a3b8'}}>
+                          <td colSpan={6} style={{padding: '36px 14px', textAlign: 'center', color: '#94a3b8', fontSize: '13px'}}>
                             لا توجد حركات مالية مسجلة خلال الفترة المحددة.
                           </td>
                         </tr>
                       )}
                     </tbody>
+                    {statementData.entries.length > 0 && (
+                      <tfoot style={{background: '#f8fafc', borderTop: '2px solid #cbd5e1'}}>
+                        <tr>
+                          <td colSpan={3} style={{padding: '12px 14px', textAlign: 'center', color: '#475569', fontWeight: 700}}>
+                            الإجمالي للفترة ({stmtCurrency})
+                          </td>
+                          <td style={{padding: '12px 14px', textAlign: 'left', color: '#dc2626', fontWeight: 800, whiteSpace: 'nowrap'}} dir="ltr">
+                            {money(statementData.debitMinor)}
+                          </td>
+                          <td style={{padding: '12px 14px', textAlign: 'left', color: '#16a34a', fontWeight: 800, whiteSpace: 'nowrap'}} dir="ltr">
+                            {money(statementData.creditMinor)}
+                          </td>
+                          <td style={{padding: '12px 14px', textAlign: 'left', color: statementData.closingMinor > 0 ? '#b91c1c' : '#15803d', fontWeight: 800, whiteSpace: 'nowrap'}} dir="ltr">
+                            {money(statementData.closingMinor)}
+                          </td>
+                        </tr>
+                      </tfoot>
+                    )}
                   </table>
                 </div>
               </div>
