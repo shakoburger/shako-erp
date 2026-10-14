@@ -1131,7 +1131,6 @@ export function TicketEntry({initial,initialStagedOp,onStagedConsumed,onSaved,on
       normalized.fare = Number(normalized.sellingPrice || normalized.supplierPrice || 0);
     }
     const r=await api('/api/records',{method:'POST',body:JSON.stringify({id:form.id,kind:'ticket',name:form.name,code:form.code,date:form.date,currency:form.currency,amount:ticketAmountMinor,payload:cleanPayload({...normalized,...currentTotals,customerName:resolvedCustomerName,airline:resolvedAirline,supplierId:resolvedSupplierId})})});
-    const cust=customers.find(c=>c.id===p.customerId);
     const custPhone=cust?.payload?.phone||p.phone||'';
     const waMsg=buildTicketWhatsAppMessage({
      ticketCode:form.code,
