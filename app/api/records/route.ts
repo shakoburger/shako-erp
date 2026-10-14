@@ -19,19 +19,105 @@ export async function POST(req:Request){return handled(async()=>{sameOrigin(req)
   const historicalEdit=old&&existing.currency===b.currency&&old.customerId===payload.customerId&&sameTicketPricing(payload,old)&&payload.payment===old.payment&&payload.treasuryId===old.treasuryId&&payload.brokerId===old.brokerId&&Number(payload.brokerCommission||0)===Number(old.brokerCommission||0)&&ticketSupplierName(payload)===ticketSupplierName(old);
   const legacyBroker=old?.flags?.Broker&&payload.flags?.Broker&&!old.brokerId&&!payload.brokerId&&!Number(payload.brokerCommission||0)&&historicalEdit;
   const legacySupplier=old?.flags?.['Non IATA']&&!old.vendor&&old.airline===payload.airline;
+  const normAr = (s: string) => (s || '').toLowerCase()
+    .replace(/[إأآا]/g, 'ا')
+    .replace(/[ىي]/g, 'ي')
+    .replace(/[ةه]/g, 'ه')
+    .replace(/\s+/g, ' ')
+    .trim();
+
   const airlineName = (payload.airline || '').trim();
   const airlineSupplierId = payload.supplierId || '';
-  const dbAirline = airlineName ? await c.database.prepare("SELECT id, name FROM records WHERE (TRIM(LOWER(name)) = TRIM(LOWER(?)) OR (id = ? AND id != '')) AND (kind='account' OR (kind='customer' AND json_extract(payload,'$.accountType')='airline'))").bind(airlineName, airlineSupplierId).first<any>() : null;
-  const isAirlineKnown = Boolean((old && old.airline === payload.airline) || dbAirline);
+  let dbAirline = (airlineName || airlineSupplierId) ? await c.database.prepare(
+    "SELECT id, name FROM records WHERE (TRIM(LOWER(name)) = TRIM(LOWER(?)) OR (id = ? AND id != '')) AND (kind='account' OR (kind='customer' AND json_extract(payload,'$.accountType')='airline'))"
+  ).bind(airlineName, airlineSupplierId).first<any>() : null;
+
+  if (!dbAirline && airlineName) {
+    const allAirlineAccs = await c.database.prepare(
+      "SELECT id, name FROM records WHERE (kind='account' OR (kind='customer' AND json_extract(payload,'$.accountType')='airline'))"
+    ).all<any>();
+    const targetNorm = normAr(airlineName);
+    dbAirline = (allAirlineAccs.results || []).find((a: any) => {
+      const aNorm = normAr(a.name);
+      return aNorm === targetNorm || aNorm.includes(targetNorm) || targetNorm.includes(aNorm);
+    }) || null;
+  }
+
+  if (!dbAirline && airlineName && !nonIata) {
+    const newAirlineId = crypto.randomUUID();
+    const nowStr = new Date().toISOString();
+    await c.database.prepare(
+      "INSERT INTO records (id, kind, module, code, name, date, currency, amount, payload, created_at, updated_at) VALUES (?, 'customer', 'customers', ?, ?, ?, 'MULTI', 0, ?, ?, ?)"
+    ).bind(
+      newAirlineId,
+      newAirlineId,
+      airlineName,
+      b.date || nowStr.slice(0, 10),
+      JSON.stringify({ accountType: 'airline', direction: 'receipt', notes: 'تم الإنشاء تلقائياً مع إصدار التذكرة' }),
+      nowStr,
+      nowStr
+    ).run();
+    dbAirline = { id: newAirlineId, name: airlineName };
+  }
+
+  const isAirlineKnown = Boolean((old && old.airline === payload.airline) || dbAirline || nonIata);
   if (!nonIata && !payload.supplierId && dbAirline?.id) {
     payload.supplierId = dbAirline.id;
   }
 
-  if(!payload.customerId||payload.fare===undefined||(!nonIata&&!isAirlineKnown)||(nonIata&&!payload.vendor&&!legacySupplier))throw new APIError(400,'اختر العميل والخطوط أو المورد وأدخل سعر التذكرة');
-  if(payload.airline&&!isAirlineKnown)throw new APIError(400,'شركة الطيران غير مسجلة في دليل الحسابات؛ يرجى إضافتها أولاً في حسابات الخطوط');
-  manage(c,'customers');const customer=await c.database.prepare("SELECT name,currency FROM records WHERE id = ? AND kind = 'customer'").bind(payload.customerId).first<any>();if(!customer)throw new APIError(400,'العميل غير موجود');
+  if (payload.fare === undefined || payload.fare === null) {
+    payload.fare = Number(payload.sellingPrice || payload.supplierPrice || (b.amount / 100) || 0);
+  }
+
+  manage(c, 'customers');
+  let customer = payload.customerId ? await c.database.prepare(
+    "SELECT id, name, currency FROM records WHERE id = ? AND kind = 'customer'"
+  ).bind(payload.customerId).first<any>() : null;
+
+  if (!customer && payload.customerName) {
+    const custName = String(payload.customerName).trim();
+    customer = await c.database.prepare(
+      "SELECT id, name, currency FROM records WHERE kind = 'customer' AND (TRIM(LOWER(name)) = TRIM(LOWER(?)) OR id = ?)"
+    ).bind(custName, payload.customerId || '').first<any>();
+    if (customer) {
+      payload.customerId = customer.id;
+    }
+  }
+
+  if (!customer && (payload.customerName || (payload.customerId && String(payload.customerId).length > 5))) {
+    const custName = (payload.customerName || 'عميل تجريبي').trim();
+    const custId = payload.customerId || crypto.randomUUID();
+    const nowStr = new Date().toISOString();
+    await c.database.prepare(
+      "INSERT INTO records (id, kind, module, code, name, date, currency, amount, payload, created_at, updated_at) VALUES (?, 'customer', 'customers', ?, ?, ?, 'MULTI', 0, ?, ?, ?)"
+    ).bind(
+      custId,
+      custId,
+      custName,
+      b.date || nowStr.slice(0, 10),
+      JSON.stringify({ accountType: 'customer', phone: payload.phone || '', notes: 'تم الإنشاء تلقائياً مع إصدار التذكرة' }),
+      nowStr,
+      nowStr
+    ).run();
+    customer = { id: custId, name: custName, currency: 'MULTI' };
+    payload.customerId = custId;
+  }
+
+  if (!payload.customerId || payload.fare === undefined || (!nonIata && !isAirlineKnown) || (nonIata && !payload.vendor && !legacySupplier)) {
+    throw new APIError(400, 'اختر العميل والخطوط أو المورد وأدخل سعر التذكرة');
+  }
+  if (!customer) throw new APIError(400, 'العميل غير موجود');
   if(payload.flags?.Broker&&!legacyBroker){if(!payload.brokerId)throw new APIError(400,'اختر حساب البروكر');const broker=await c.database.prepare("SELECT * FROM records WHERE id=? AND kind IN ('account','customer')").bind(payload.brokerId).first<any>();if(!broker||(broker.kind==='account'&&broker.currency!=='MULTI'&&broker.currency!==b.currency))throw new APIError(400,'اختر حساب بروكر بنفس عملة التذكرة');payload.brokerName=broker.name;if(broker.kind==='account')manage(c,'accounts');else manage(c,'customers');}else if(!legacyBroker){delete payload.brokerId;payload.brokerCommission=0;delete payload.brokerName}
-  if(payload.supplierId){const supplier=await c.database.prepare("SELECT * FROM records WHERE id=? AND kind IN ('account','customer')").bind(payload.supplierId).first<any>();if(!supplier)throw new APIError(400,'حساب المورد غير موجود');if(supplier.kind==='account'&&supplier.currency!=='MULTI'&&supplier.currency!==b.currency)throw new APIError(400,'حساب المورد يجب أن يطابق عملة التذكرة');if(supplier.name.trim().toLowerCase()!==ticketSupplierName(payload).trim().toLowerCase()&&!(old?.supplierId===payload.supplierId&&ticketSupplierName(old)===ticketSupplierName(payload)))throw new APIError(400,'اسم المورد لا يطابق الحساب المحدد');if(supplier.kind==='account')manage(c,'accounts');else manage(c,'customers');}
+  if(payload.supplierId){
+    const supplier=await c.database.prepare("SELECT * FROM records WHERE id=? AND kind IN ('account','customer')").bind(payload.supplierId).first<any>();
+    if(!supplier)throw new APIError(400,'حساب المورد غير موجود');
+    if(supplier.kind==='account'&&supplier.currency!=='MULTI'&&supplier.currency!==b.currency)throw new APIError(400,'حساب المورد يجب أن يطابق عملة التذكرة');
+    const sNorm = normAr(supplier.name);
+    const tNorm = normAr(ticketSupplierName(payload));
+    const matches = sNorm === tNorm || sNorm.includes(tNorm) || tNorm.includes(sNorm) || (old?.supplierId===payload.supplierId&&ticketSupplierName(old)===ticketSupplierName(payload)) || (supplier.id === payload.supplierId);
+    if(!matches)throw new APIError(400,'اسم المورد لا يطابق الحساب المحدد');
+    if(supplier.kind==='account')manage(c,'accounts');else manage(c,'customers');
+  }
   if(payload.commissionAccountId){const commAcc=await c.database.prepare("SELECT * FROM records WHERE id=?").bind(payload.commissionAccountId).first<any>();if(commAcc){if(commAcc.currency!=='MULTI'&&commAcc.currency!==b.currency)throw new APIError(400,'حساب العمولات يجب أن يطابق عملة التذكرة');payload.commissionAccountName=commAcc.name;}}const totals=ticketTotals(payload,existing?{payload:old,amount:existing.amount}:undefined);
   if(!Object.values(totals).every(Number.isSafeInteger))throw new APIError(400,'إجمالي التذكرة أكبر من المسموح');
   if(totals.totalMinor<0)throw new APIError(400,'الخصم أكبر من إجمالي سعر الراكب');

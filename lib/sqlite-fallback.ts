@@ -157,6 +157,19 @@ function initDdl(instance: any) {
 
 function seedDefaultData(instance: any) {
   const now = new Date().toISOString();
+  const defaultSeeds = [
+    { id: 'air_sdn_01', kind: 'customer', module: 'customers', name: 'الخطوط الجوية السودانية', currency: 'MULTI', payload: { accountType: 'airline', direction: 'receipt', notes: 'حساب خطوط معتمد' } },
+    { id: 'air_tar_02', kind: 'customer', module: 'customers', name: 'تاركو للطيران', currency: 'MULTI', payload: { accountType: 'airline', direction: 'receipt', notes: 'حساب خطوط معتمد' } },
+    { id: 'air_bdr_03', kind: 'customer', module: 'customers', name: 'بدر للطيران', currency: 'MULTI', payload: { accountType: 'airline', direction: 'receipt', notes: 'حساب خطوط معتمد' } },
+    { id: 'air_uae_04', kind: 'customer', module: 'customers', name: 'طيران الإمارات', currency: 'MULTI', payload: { accountType: 'airline', direction: 'receipt', notes: 'حساب خطوط معتمد' } },
+    { id: 'air_sau_05', kind: 'customer', module: 'customers', name: 'الخطوط السعودية', currency: 'MULTI', payload: { accountType: 'airline', direction: 'receipt', notes: 'حساب خطوط معتمد' } },
+    { id: 'air_egy_06', kind: 'customer', module: 'customers', name: 'مصر للطيران', currency: 'MULTI', payload: { accountType: 'airline', direction: 'receipt', notes: 'حساب خطوط معتمد' } },
+    { id: 'air_qat_07', kind: 'customer', module: 'customers', name: 'الخطوط الجوية القطرية', currency: 'MULTI', payload: { accountType: 'airline', direction: 'receipt', notes: 'حساب خطوط معتمد' } },
+    { id: 'air_fdb_08', kind: 'customer', module: 'customers', name: 'فلاي دبي', currency: 'MULTI', payload: { accountType: 'airline', direction: 'receipt', notes: 'حساب خطوط معتمد' } },
+    { id: 'acc_comm_01', kind: 'account', module: 'accounts', name: 'عمولات تذاكر الطيران', currency: 'MULTI', payload: { accountType: 'commission', notes: 'حساب وسيط لعمولات التذاكر' } },
+    { id: 'acc_rev_02', kind: 'account', module: 'accounts', name: 'إيرادات تذاكر وخدمات', currency: 'MULTI', payload: { accountType: 'revenue', notes: 'حساب الإيرادات والأرباح التشغيلية' } }
+  ];
+
   const ownerUserId = 'owner_usr_' + crypto.randomUUID().slice(0, 8);
   const sysSettingsPayload = JSON.stringify(defaults);
 
@@ -178,6 +191,13 @@ function seedDefaultData(instance: any) {
     ) VALUES (
       'mem_default_admin', '00000000-0000-4000-8000-000000000001', 'admin@shako.com', 1, ?
     )`).run(now);
+    for (const s of defaultSeeds) {
+      instance.db.prepare(`INSERT OR IGNORE INTO records (
+        id, kind, module, code, name, date, currency, amount, payload, created_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?)`).run(
+        s.id, s.kind, s.module, s.id, s.name, now.slice(0, 10), s.currency, JSON.stringify(s.payload), now, now
+      );
+    }
   } else if (instance.type === 'sqljs') {
     instance.db.run('INSERT INTO system_settings (id, owner_id, payload, revision, updated_at) VALUES (1, ?, ?, 1, ?)', [ownerUserId, sysSettingsPayload, now]);
     instance.db.run('INSERT OR IGNORE INTO platform_settings (id, owner_id) VALUES (1, ?)', [ownerUserId]);
@@ -196,6 +216,13 @@ function seedDefaultData(instance: any) {
     ) VALUES (
       'mem_default_admin', '00000000-0000-4000-8000-000000000001', 'admin@shako.com', 1, ?
     )`, [now]);
+    for (const s of defaultSeeds) {
+      instance.db.run(`INSERT OR IGNORE INTO records (
+        id, kind, module, code, name, date, currency, amount, payload, created_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?)`, [
+        s.id, s.kind, s.module, s.id, s.name, now.slice(0, 10), s.currency, JSON.stringify(s.payload), now, now
+      ]);
+    }
     persistDb(instance);
   }
 }

@@ -38,7 +38,7 @@ function Field({label,value,onChange,type='text',color,required=false,allowNegat
 function useRows(kind:string,refreshKey:any=''){const w=useWorkspaceWindow();const [rows,setRows]=useState<RecordRow[]>([]),[loading,setLoading]=useState(true),[error,setError]=useState('');const load=useCallback(async()=>{setLoading(true);try{setRows(await api('/api/records?kind='+encodeURIComponent(kind)));setError('')}catch(e:any){setError(e.message);setRows([])}finally{setLoading(false)}},[kind,refreshKey]);useEffect(()=>{if(w.active)load()},[load,w.active,w.refreshKey]);return {rows,loading,error,load}}
 function useCollectionAccounts(enabled=true){const w=useWorkspaceWindow(),[rows,setRows]=useState<RecordRow[]>([]);useEffect(()=>{if(!enabled||!w.active)return;let current=true;Promise.all([api('/api/cash').catch(()=>({accounts:[]})),api('/api/banks').catch(()=>({accounts:[]}))]).then(([cash,bank])=>{if(current)setRows([...cash.accounts,...bank.accounts])});return()=>{current=false}},[enabled,w.active,w.refreshKey]);return rows}
 function Empty({loading,error,load}:{loading:boolean;error:string;load:()=>void}){return <div className={'empty-row '+(error?'error-text':'')}>{loading?'جارٍ تحميل البيانات…':error||'لا توجد بيانات مسجلة.'}{error&&<button className="plain-button" onClick={load}>إعادة المحاولة</button>}</div>}
-const cleanPayload=(p:any)=>Object.fromEntries(Object.entries(p).filter(([k,v])=>!(['brokerId','supplierId','treasuryId','customerId','commissionAccountId','serviceAccountId','settlementTreasuryId'].includes(k)&&!v)&&['receiptNumber','accountType','sellingPrice','supplierPrice','phone','email','address','creditLimit','notes','direction','customerId','treasuryId','supplierId','brokerId','brokerCommission','airline','vendor','route','class','sign','fare','commPct','commAmount','penalties','refundComm','discount','discountPct','extraPct','extraComm','payment','income','taxes','flags','status','crossCurrency','settlementCurrency','settlementTreasuryId','settlementAmount','conversionRate','passengers','commissionAccountId','serviceAccountId','serviceAccountName','supplierName','brokerName','commissionAccountName','cost','price','quantity','exchangeRate','portalEnabled','portalCode','branchId','billedTo','billedToTaxNumber','billedToAddress','billedToPhone','billedToEmail','attention','language','invoiceType','ticketId','ticketIds','ticketCode','passengerName','flightDate','pnr','items','subtotal','taxRate','taxAmount','dueDate','bankDetails','refundDate','supplierComm','originalSellMinor','originalCostMinor','customerRefundMinor','supplierRefundMinor','refundIncomeMinor','refundNotes'].includes(k)));
+const cleanPayload=(p:any)=>Object.fromEntries(Object.entries(p).filter(([k,v])=>!(['brokerId','supplierId','treasuryId','customerId','commissionAccountId','serviceAccountId','settlementTreasuryId'].includes(k)&&!v)&&['receiptNumber','accountType','customerName','sellingPrice','supplierPrice','phone','email','address','creditLimit','notes','direction','customerId','treasuryId','supplierId','brokerId','brokerCommission','airline','vendor','route','class','sign','fare','commPct','commAmount','penalties','refundComm','discount','discountPct','extraPct','extraComm','payment','income','taxes','flags','status','crossCurrency','settlementCurrency','settlementTreasuryId','settlementAmount','conversionRate','passengers','commissionAccountId','serviceAccountId','serviceAccountName','supplierName','brokerName','commissionAccountName','cost','price','quantity','exchangeRate','portalEnabled','portalCode','branchId','billedTo','billedToTaxNumber','billedToAddress','billedToPhone','billedToEmail','attention','language','invoiceType','ticketId','ticketIds','ticketCode','passengerName','flightDate','pnr','items','subtotal','taxRate','taxAmount','dueDate','bankDetails','refundDate','supplierComm','originalSellMinor','originalCostMinor','customerRefundMinor','supplierRefundMinor','refundIncomeMinor','refundNotes'].includes(k)));
 function csv(name:string,headers:string[],rows:any[][]){const quote=(v:any)=>'"'+String(typeof v==='string'&&/^[=+@-]/.test(v)?"'"+v:v??'').replaceAll('"','""')+'"';permittedExport(()=>download('\uFEFF'+[headers,...rows].map(row=>row.map(quote).join(',')).join('\r\n'),name+'.csv','text/csv;charset=utf-8'))}
 export function RecordManager({kind,initialStatus}:{kind:string;initialStatus?:string}){
  const w=useWorkspaceWindow(),settings=useAgencySettings(),access=useAgencyAccess(),canManage=access.modules[kinds[kind]?.module]==='manage';const [catalog,setCatalog]=useState<string[]>(currencies);useEffect(()=>{api('/api/currencies').then(c=>setCatalog(c.map((x:any)=>x.code))).catch(()=>{})},[]);
@@ -846,11 +846,28 @@ export function TicketEntry({initial,initialStagedOp,onStagedConsumed,onSaved,on
   const supplierOptions=[...new Set([...registeredSuppliers,...supplierAccounts.map(a=>a.name),...tickets.map(t=>ticketSupplierName(t.payload))])];
   const vendorListId='ticket-vendors-'+(form.id||'new');
 
-  const airlinePickerOptions=registeredAirlineAccs.map(a=>({
-   value: a.name,
-   label: a.name + (a.currency==='MULTI'?' · متعدد العملات':` · ${a.currency}`)
-  }));
-  const matchedAirlineAcc=registeredAirlineAccs.find(c=>c.name.trim().toLowerCase()===(p.airline||'').trim().toLowerCase())||supplierAccounts.find(a=>a.name.trim().toLowerCase()===(p.airline||'').trim().toLowerCase());
+  const normAr = (s: string) => (s || '').toLowerCase().replace(/[إأآا]/g, 'ا').replace(/[ىي]/g, 'ي').replace(/[ةه]/g, 'ه').replace(/\s+/g, ' ').trim();
+  const standardAirlinesList = ['الخطوط الجوية السودانية', 'تاركو للطيران', 'بدر للطيران', 'طيران الإمارات', 'الخطوط السعودية', 'مصر للطيران', 'الخطوط الجوية القطرية', 'فلاي دبي'];
+  const existingAirlineNames = registeredAirlineAccs.map(a => a.name);
+  const extraAirlineOptions = standardAirlinesList
+    .filter(name => !existingAirlineNames.some(en => normAr(en) === normAr(name)))
+    .map(name => ({ value: name, label: name + ' · متعدد العملات' }));
+
+  const airlinePickerOptions = [
+    ...registeredAirlineAccs.map(a => ({
+      value: a.name,
+      label: a.name + (a.currency === 'MULTI' ? ' · متعدد العملات' : ` · ${a.currency}`)
+    })),
+    ...extraAirlineOptions
+  ];
+  const targetAirline = normAr(p.airline);
+  const matchedAirlineAcc = registeredAirlineAccs.find(c => {
+    const cn = normAr(c.name);
+    return cn === targetAirline || cn.includes(targetAirline) || targetAirline.includes(cn);
+  }) || supplierAccounts.find(a => {
+    const an = normAr(a.name);
+    return an === targetAirline || an.includes(targetAirline) || targetAirline.includes(an);
+  });
   const commissionAccounts=supplierAccounts.filter((a:RecordRow)=>!a.payload?.archived&&(a.payload?.accountType==='revenue'||a.payload?.accountType==='commission'));
   const defaultCommAcc=commissionAccounts.find((a:RecordRow)=>a.name.includes('تذاكر'))||commissionAccounts.find((a:RecordRow)=>a.payload?.accountType==='commission')||commissionAccounts[0];
   const selectedCommAcc=commissionAccounts.find((a:RecordRow)=>a.id===p.commissionAccountId);
@@ -1103,7 +1120,17 @@ export function TicketEntry({initial,initialStagedOp,onStagedConsumed,onSaved,on
      normalized.sellingPrice=currentTotals.totalMinor/100;
      normalized.supplierPrice=currentTotals.supplierDueMinor/100;
     }
-    const r=await api('/api/records',{method:'POST',body:JSON.stringify({id:form.id,kind:'ticket',name:form.name,code:form.code,date:form.date,currency:form.currency,amount:ticketAmountMinor,payload:cleanPayload({...normalized,...currentTotals})})});
+    const cust=customers.find(c=>c.id===p.customerId);
+    const resolvedCustomerName = cust?.name || p.customerName || p.customer || '';
+    const resolvedAirline = normalized.airline || p.airline || matchedAirlineAcc?.name || '';
+    const resolvedSupplierId = normalized.supplierId || p.supplierId || matchedAirlineAcc?.id || undefined;
+    if ((!normalized.fare || Number(normalized.fare) === 0) && Number(normalized.sellingPrice) > 0) {
+      normalized.fare = Math.max(0, Number(normalized.sellingPrice) - totalTaxes);
+    }
+    if (!normalized.fare || Number(normalized.fare) === 0) {
+      normalized.fare = Number(normalized.sellingPrice || normalized.supplierPrice || 0);
+    }
+    const r=await api('/api/records',{method:'POST',body:JSON.stringify({id:form.id,kind:'ticket',name:form.name,code:form.code,date:form.date,currency:form.currency,amount:ticketAmountMinor,payload:cleanPayload({...normalized,...currentTotals,customerName:resolvedCustomerName,airline:resolvedAirline,supplierId:resolvedSupplierId})})});
     const cust=customers.find(c=>c.id===p.customerId);
     const custPhone=cust?.payload?.phone||p.phone||'';
     const waMsg=buildTicketWhatsAppMessage({
