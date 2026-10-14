@@ -451,9 +451,15 @@ export function ClientPortal() {
       <header style={{background: '#ffffff', borderBottom: '1px solid #e2e8f0', position: 'sticky', top: 0, zIndex: 30}}>
         <div style={{maxWidth: '1200px', margin: '0 auto', padding: '12px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
           <div style={{display: 'flex', alignItems: 'center', gap: '12px'}}>
-            <div style={{background: '#0f766e', color: '#ffffff', padding: '8px', borderRadius: '10px', display: 'flex'}}>
-              <Building2 size={24}/>
-            </div>
+            {agency?.logoKey ? (
+              <div style={{background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', width: '42px', height: '42px', padding: '3px', overflow: 'hidden', boxShadow: '0 1px 3px rgba(0,0,0,0.06)'}}>
+                <img src={`/api/agency/logo?v=${encodeURIComponent(agency.logoKey)}`} alt="شعار الوكالة" style={{maxWidth: '100%', maxHeight: '100%', objectFit: 'contain'}} />
+              </div>
+            ) : (
+              <div style={{background: '#0f766e', color: '#ffffff', padding: '8px', borderRadius: '10px', display: 'flex'}}>
+                <Building2 size={24}/>
+              </div>
+            )}
             <div>
               <div style={{fontSize: '16px', fontWeight: 800, color: '#0f172a'}}>{agency?.name || 'وكالة السفر'}</div>
               <div style={{fontSize: '12px', color: '#64748b'}}>بوابة العملاء والشركات</div>
