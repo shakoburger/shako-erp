@@ -1,6 +1,6 @@
 'use client';
 import {useEffect,useState} from 'react';
-import {Building2,ShieldCheck,Plus,RefreshCw,Download,Settings,Archive,ExternalLink,KeyRound,Copy,Check,CheckCircle2,Clock,Crown,Power,DollarSign,Eye,Lock,User} from 'lucide-react';
+import {Building2,ShieldCheck,Plus,RefreshCw,Download,Settings,Archive,ExternalLink,KeyRound,Copy,Check,CheckCircle2,Clock,Crown,Power,DollarSign,Eye,Lock,User,Phone} from 'lucide-react';
 import {Dialog,DialogContent,DialogTitle,DialogDescription} from '@/components/ui/dialog';
 import {Toaster,toast} from 'sonner';
 import {api,download} from './erp-system';
@@ -42,6 +42,7 @@ export function PlatformPanel(){
   const [ownerUsername, setOwnerUsername] = useState('owner');
   const [ownerDisplayName, setOwnerDisplayName] = useState('');
   const [ownerEmail, setOwnerEmail] = useState('');
+  const [ownerPhone, setOwnerPhone] = useState('');
   const [ownerNewPassword, setOwnerNewPassword] = useState('');
   const [ownerConfirmPassword, setOwnerConfirmPassword] = useState('');
   const [ownerShowPass, setOwnerShowPass] = useState(false);
@@ -57,6 +58,7 @@ export function PlatformPanel(){
         setOwnerUsername(res.username || 'owner');
         setOwnerDisplayName(res.name || '');
         setOwnerEmail(res.email || '');
+        setOwnerPhone(res.phone || '');
       }
     }catch(e:any){
       console.warn('Could not load owner credentials:', e);
@@ -88,6 +90,7 @@ export function PlatformPanel(){
           password: ownerNewPassword || undefined,
           name: ownerDisplayName.trim() || undefined,
           email: ownerEmail.trim() || undefined,
+          phone: ownerPhone.trim() || undefined,
         })
       });
       toast.success('تم تحديث بيانات دخول مالك المنصة بنجاح!');
@@ -331,8 +334,13 @@ export function PlatformPanel(){
             }}>
               <Crown size={15}/> منصة المالك المركزية | SHAKO SuperAdmin
             </span>
-            <span style={{fontSize:'12px',color:'#94a3b8'}}>
-              الحساب: <strong style={{color:'#f8fafc'}}>{data.owner?.name || 'مالك النظام'}</strong> ({data.owner?.email || 'owner@shako.com'})
+            <span style={{fontSize:'12px',color:'#94a3b8',display:'inline-flex',alignItems:'center',gap:'8px',flexWrap:'wrap'}}>
+              <span>الحساب: <strong style={{color:'#f8fafc'}}>{data.owner?.name || 'مالك النظام'}</strong> ({data.owner?.email || 'owner@shako.com'})</span>
+              {data.owner?.phone && (
+                <span style={{background:'rgba(255,255,255,0.1)',padding:'2px 8px',borderRadius:'4px',color:'#f1f5f9',direction:'ltr',display:'inline-flex',alignItems:'center',gap:'4px'}}>
+                  <Phone size={12} color="#38bdf8"/> {data.owner.phone}
+                </span>
+              )}
             </span>
           </div>
           <h1 style={{margin:'0 0 6px 0',fontSize:'26px',fontWeight:800,letterSpacing:'-0.5px',color:'#ffffff'}}>
@@ -1068,7 +1076,7 @@ export function PlatformPanel(){
             </label>
 
             <label style={{display:'flex',flexDirection:'column',gap:'6px',fontSize:'13px',fontWeight:600,color:'#1e293b'}}>
-              <span>البريد الإلكتروني للتعافي</span>
+              <span>البريد الإلكتروني للتعافي والمالك</span>
               <input
                 type="email"
                 dir="ltr"
@@ -1077,6 +1085,21 @@ export function PlatformPanel(){
                 placeholder="owner@shako.com"
                 style={{padding:'10px 12px',borderRadius:'8px',border:'1px solid #cbd5e1',fontSize:'14px'}}
               />
+            </label>
+
+            <label style={{display:'flex',flexDirection:'column',gap:'6px',fontSize:'13px',fontWeight:600,color:'#1e293b'}}>
+              <span>رقم هاتف / تواصل المالك والدعم الفني</span>
+              <input
+                type="tel"
+                dir="ltr"
+                value={ownerPhone}
+                onChange={e=>setOwnerPhone(e.target.value)}
+                placeholder="مثال: 0100000000 أو +20100000000"
+                style={{padding:'10px 12px',borderRadius:'8px',border:'1px solid #cbd5e1',fontSize:'14px'}}
+              />
+              <small style={{fontSize:'11.5px',color:'#64748b',fontWeight:400}}>
+                يظهر هذا الرقم كجهة تواصل رسمية ودعم فني في لوحات المنظومة.
+              </small>
             </label>
 
             <div style={{background:'#fffbeb',border:'1px solid #fde68a',borderRadius:'10px',padding:'14px',display:'flex',flexDirection:'column',gap:'10px'}}>

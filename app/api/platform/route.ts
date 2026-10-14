@@ -54,7 +54,19 @@ export async function GET(req:Request){
       };
     }));
     const audit=(await c.database.prepare('SELECT actor,agency_id,action,created_at FROM platform_audit ORDER BY created_at DESC LIMIT 80').all()).results;
-    return json({agencies:rows,audit,owner:{name:c.user.displayName,email:c.user.email}});
+    const sysRow=await c.database.prepare('SELECT payload FROM system_settings WHERE id=1').first<{payload:string}>();
+    let ownerAuth:any={},sysPhones='';
+    try{
+      const p=sysRow?.payload?JSON.parse(sysRow.payload):{};
+      ownerAuth=p.ownerAuth||{};
+      sysPhones=p.phones||'';
+    }catch{}
+    const ownerInfo={
+      name:ownerAuth.name||c.user.displayName||'مالك المنصة',
+      email:ownerAuth.email||c.user.email||'owner@shako.com',
+      phone:ownerAuth.phone||sysPhones||''
+    };
+    return json({agencies:rows,audit,owner:ownerInfo});
   });
 }
 

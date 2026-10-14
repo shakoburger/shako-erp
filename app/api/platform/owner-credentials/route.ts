@@ -18,6 +18,7 @@ export async function GET() {
       username: ownerAuth.username || 'owner',
       name: ownerAuth.name || c.user.displayName || 'مالك المنصة الأساسي',
       email: ownerAuth.email || c.user.email || 'owner@shako.com',
+      phone: ownerAuth.phone || sysPayload.phones || '',
       hasCustomPassword: Boolean(ownerAuth.passwordHash),
       updatedAt: ownerAuth.updatedAt || null,
     });
@@ -34,6 +35,7 @@ export async function POST(req: Request) {
       password: z.string().min(6, 'كلمة المرور يجب أن تتكون من 6 أحرف على الأقل').max(128).optional().or(z.literal('')),
       name: z.string().trim().max(100).optional(),
       email: z.string().email('البريد الإلكتروني غير صحيح').optional().or(z.literal('')),
+      phone: z.string().trim().max(50).optional().or(z.literal('')),
     });
 
     const b = schema.parse(await body(req));
@@ -56,8 +58,13 @@ export async function POST(req: Request) {
       username: b.username.toLowerCase(),
       name: b.name || currentOwnerAuth.name || c.user.displayName || 'مالك المنصة الأساسي',
       email: b.email ? b.email.toLowerCase() : (currentOwnerAuth.email || 'owner@shako.com'),
+      phone: b.phone !== undefined ? b.phone.trim() : (currentOwnerAuth.phone || ''),
       updatedAt: new Date().toISOString(),
     };
+
+    if (b.phone && b.phone.trim()) {
+      payload.phones = b.phone.trim();
+    }
 
     let passwordChanged = false;
     if (b.password && b.password.trim()) {
