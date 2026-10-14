@@ -1,7 +1,7 @@
+'use client';
 import {WhatsAppDialog} from '@/components/whatsapp-dialog';
 import {buildTicketWhatsAppMessage, openWhatsAppDirect} from '@/lib/whatsapp';
 import {ERPIcon} from '@/components/erp-icons';
-'use client';
 import {AgencyLetterhead,AgencyReportFooter} from '@/components/agency-letterhead';
 import {useWorkspaceWindow,WindowControls} from '@/components/workspace-window';
 import {ReportExports,permittedExport} from '@/components/report-export';
