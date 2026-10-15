@@ -28,8 +28,21 @@ interface LoginPageProps {
 }
 
 export function LoginPage({ onLoginSuccess, returnTo = '/' }: LoginPageProps) {
-  // Portal Tab: 'agency' (واجهة مساحة العمل والحسابات) vs 'owner' (لوحة تحكم مالك المنظومة)
-  const [portalMode, setPortalMode] = useState<'owner' | 'agency'>('agency');
+  // Portal Tab: 'owner' (لوحة تحكم مالك المنظومة المركزية) vs 'agency' (واجهة مساحة العمل والحسابات)
+  const [portalMode, setPortalMode] = useState<'owner' | 'agency'>(() => {
+    if (typeof window !== 'undefined') {
+      const sp = new URLSearchParams(window.location.search);
+      const reqPortal = sp.get('portal');
+      const reqReturnTo = sp.get('returnTo');
+      if (reqPortal === 'owner' || reqReturnTo?.includes('/owner') || returnTo?.includes('/owner')) {
+        return 'owner';
+      }
+      if (reqPortal === 'agency' || reqReturnTo === '/') {
+        return 'agency';
+      }
+    }
+    return returnTo?.includes('/owner') ? 'owner' : 'owner';
+  });
 
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
@@ -70,6 +83,7 @@ export function LoginPage({ onLoginSuccess, returnTo = '/' }: LoginPageProps) {
           username: finalUser,
           password: finalPass,
           remember,
+          portalMode,
         }),
       });
 
@@ -81,11 +95,18 @@ export function LoginPage({ onLoginSuccess, returnTo = '/' }: LoginPageProps) {
 
       toast.success(`مرحباً بك: ${data.user?.name || ''}`);
 
-      const target = data.user?.redirectTo || returnTo || '/';
+      const isOwnerUser = Boolean(data.user?.isOwner || data.user?.role === 'owner');
+      let target = data.user?.redirectTo;
+      if (portalMode === 'owner' || isOwnerUser) {
+        target = '/owner';
+      } else if (!target) {
+        target = returnTo || '/';
+      }
+
       if (onLoginSuccess) {
         try { onLoginSuccess(); } catch {}
       }
-      window.location.assign(target || '/');
+      window.location.assign(target || (isOwnerUser ? '/owner' : '/'));
     } catch (err: any) {
       setError(err.message || 'حدث خطأ أثناء تسجيل الدخول');
       toast.error(err.message || 'خطأ في تسجيل الدخول');
@@ -567,7 +588,7 @@ export function LoginPage({ onLoginSuccess, returnTo = '/' }: LoginPageProps) {
                 {portalMode === 'owner' ? <Crown size={19} /> : <KeyRound size={18} />}
                 <span>
                   {portalMode === 'owner'
-                    ? 'تسجيل الدخول كمالك المنظومة ➔ (/)'
+                    ? 'تسجيل الدخول إلى منصة المالك المركزية ➔ (/owner)'
                     : 'تسجيل الدخول إلى مساحة عمل الوكالة ➔ (/)'}
                 </span>
               </>

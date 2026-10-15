@@ -8,6 +8,7 @@ export async function POST(req: Request) {
     const username = String(body.username || '').trim().toLowerCase();
     const password = String(body.password || '');
     const remember = Boolean(body.remember);
+    const portalMode = String(body.portalMode || '').trim();
 
     if (!username || !password) {
       return Response.json(
@@ -66,7 +67,7 @@ export async function POST(req: Request) {
           role: 'owner',
           agencyId: legacyAgencyId,
           isOwner: true,
-          redirectTo: '/',
+          redirectTo: '/owner',
         };
       }
     }

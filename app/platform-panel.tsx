@@ -6,6 +6,7 @@ import {Toaster,toast} from 'sonner';
 import {api,download} from './erp-system';
 import {moduleLabels,defaults,today,getEndOfMonth,getEndOfNextMonth,money} from '@/lib/domain';
 import {currencyDefaults} from '@/lib/cash';
+import {LoginPage} from '@/components/login-page';
 
 const states:any={active:'مفعلة',suspended:'موقوفة',archived:'مؤرشفة'},payments:any={paid:'مسدد',partial:'مسدد جزئيًا',unpaid:'غير مسدد'};
 
@@ -271,6 +272,10 @@ export function PlatformPanel(){
       await fetch('/api/auth/logout',{method:'POST'});
     }catch{}
     window.location.assign('/login');
+  }
+
+  if (error && (error.includes('تسجيل الدخول') || error.includes('غير مصرح') || error.includes('401') || error.includes('لوحة مالك المنصة غير متاحة'))) {
+    return <LoginPage onLoginSuccess={load} returnTo="/owner" />;
   }
 
   if(error)return (

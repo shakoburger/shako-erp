@@ -48,6 +48,7 @@ next-env.d.ts
 /.npm-cache/
 /scratch/
 __pycache__/
+*.db
 *.pyc
 *.sqlite*
 
