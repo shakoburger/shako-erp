@@ -14,7 +14,7 @@ export function roleAccess(role:AgencyRole):Access{
  if(role==='accountant'){
   return {
    role:'accountant',
-   modules:{supervisor:'manage',accounts:'manage',cash:'manage',banks:'manage',reports:'manage',customers:'none',tickets:'none',stagedOps:'none',employees:'none',control:'none'},
+   modules:{supervisor:'manage',accounts:'manage',customers:'manage',cash:'manage',banks:'manage',reports:'manage',tickets:'view',stagedOps:'view',employees:'none',control:'none'},
    manageSettings:false,manageUsers:false,export:true,backup:false
   };
  }
