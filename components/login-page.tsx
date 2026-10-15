@@ -28,8 +28,8 @@ interface LoginPageProps {
 }
 
 export function LoginPage({ onLoginSuccess, returnTo = '/' }: LoginPageProps) {
-  // Portal Tab: 'owner' (مالك ومزود المنصة) vs 'agency' (الوكالة المشتركة التي اشترت النظام)
-  const [portalMode, setPortalMode] = useState<'owner' | 'agency'>('owner');
+  // Portal Tab: 'agency' (واجهة مساحة العمل والحسابات) vs 'owner' (لوحة تحكم مالك المنظومة)
+  const [portalMode, setPortalMode] = useState<'owner' | 'agency'>('agency');
 
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
@@ -82,14 +82,10 @@ export function LoginPage({ onLoginSuccess, returnTo = '/' }: LoginPageProps) {
       toast.success(`مرحباً بك: ${data.user?.name || ''}`);
 
       const target = data.user?.redirectTo || returnTo || '/';
-      if (data.user?.isOwner && target === '/owner') {
-        window.location.assign('/owner');
-      } else {
-        if (onLoginSuccess) {
-          try { onLoginSuccess(); } catch {}
-        }
-        window.location.assign(target || '/');
+      if (onLoginSuccess) {
+        try { onLoginSuccess(); } catch {}
       }
+      window.location.assign(target || '/');
     } catch (err: any) {
       setError(err.message || 'حدث خطأ أثناء تسجيل الدخول');
       toast.error(err.message || 'خطأ في تسجيل الدخول');
@@ -291,10 +287,10 @@ export function LoginPage({ onLoginSuccess, returnTo = '/' }: LoginPageProps) {
           >
             <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 700, color: '#f59e0b', marginBottom: '4px' }}>
               <Crown size={16} />
-              <span>أنت مالك المنصة ومزوّد الخدمة السحابية (SaaS Provider)</span>
+              <span>دخول مالك المنظومة (System Owner)</span>
             </div>
             <p style={{ margin: 0, fontSize: '11.5px', color: '#cbd5e1' }}>
-              هذه البوابة خاصة بك كمالك للمنظومة لإدارة كافة الوكالات المشتركة التي اشترت منك، إصدار تراخيصها، متابعة سداد الاشتراكات، وإيقاف أو تفعيل الوكالات. (لا علاقة لها بإدخالات التذاكر وحجوزات الوكالات).
+              بصفتك مالك المنظومة، يمكنك الدخول لمساحة عمل النظام بكافة الحسابات والعمليات، وتعديل اسم الوكالة الحصري للمالك، وإدارة التراخيص. جميع الحسابات والبيانات والعمليات محفوظة بشكل دائم في قاعدة البيانات ولا تُحذف عند الخروج أو الدخول.
             </p>
           </div>
         ) : (
@@ -312,13 +308,33 @@ export function LoginPage({ onLoginSuccess, returnTo = '/' }: LoginPageProps) {
           >
             <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 700, color: '#38bdf8', marginBottom: '4px' }}>
               <Building2 size={16} />
-              <span>خاص بالوكالة التي اشترت واشتركت في المنظومة (Agency Client)</span>
+              <span>دخول فريق عمل الوكالة (المدير والمحاسب وموظف الحجز)</span>
             </div>
             <p style={{ margin: 0, fontSize: '11.5px', color: '#cbd5e1' }}>
-              هنا يقوم فريق عمل الوكالة المشتركة (مدير الوكالة، المحاسب المالي، وموظف الحجز) بإدخال اسم المستخدم وكلمة المرور المحددة لهم للعمل على النظام.
+              مساحة العمل لإدارة التذاكر، الخزائن، الحسابات، العملاء، والتقارير، مع إمكانية رفع وتغيير شعار الوكالة (اللوقو). كافة الحسابات والبيانات والعمليات المدخلة تبقى محفوظة ومحمية تلقائياً دون أي فقدان.
             </p>
           </div>
         )}
+
+        {/* Database Persistence Guarantee Banner */}
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+            background: 'rgba(16, 185, 129, 0.08)',
+            border: '1px solid rgba(16, 185, 129, 0.25)',
+            borderRadius: '10px',
+            padding: '9px 12px',
+            marginBottom: '18px',
+            fontSize: '11.5px',
+            color: '#a7f3d0',
+            lineHeight: 1.5,
+          }}
+        >
+          <ShieldCheck size={16} color="#10b981" style={{ flexShrink: 0 }} />
+          <span>قاعدة البيانات نشطة ودائمة: جميع الحسابات والعمليات والإعدادات محفوظة ولن تُحذف عند تسجيل الخروج أو الدخول.</span>
+        </div>
 
         {/* Error Notification */}
         {error && (
@@ -363,7 +379,7 @@ export function LoginPage({ onLoginSuccess, returnTo = '/' }: LoginPageProps) {
                 required
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
-                placeholder={portalMode === 'owner' ? 'أدخل اسم مستخدم المالك (مثال: owner)' : 'أدخل اسم المستخدم أو البريد الإلكتروني'}
+                placeholder={portalMode === 'owner' ? 'أدخل اسم مستخدم المالك (الافتراضي: owner أو اسمك الجديد)' : 'أدخل اسم المستخدم أو البريد الإلكتروني'}
                 style={{
                   width: '100%',
                   height: '46px',
@@ -551,7 +567,7 @@ export function LoginPage({ onLoginSuccess, returnTo = '/' }: LoginPageProps) {
                 {portalMode === 'owner' ? <Crown size={19} /> : <KeyRound size={18} />}
                 <span>
                   {portalMode === 'owner'
-                    ? 'تسجيل الدخول إلى منصة مالك المنظومة ➔ (/owner)'
+                    ? 'تسجيل الدخول كمالك المنظومة ➔ (/)'
                     : 'تسجيل الدخول إلى مساحة عمل الوكالة ➔ (/)'}
                 </span>
               </>

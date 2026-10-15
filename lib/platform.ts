@@ -8,7 +8,13 @@ import {getSqliteD1Database} from './sqlite-fallback';
 export const legacyAgencyId='00000000-0000-4000-8000-000000000001';
 export const agencyCookie='shako_selected_agency';
 export type Agency={id:string;name:string;namespace:string;admin_email:string;state:'active'|'suspended'|'archived';payment_status:'paid'|'partial'|'unpaid';fee_minor:number;currency:string;paid_on:string;due_on:string;notes:string;revision:number;created_at:string;updated_at:string};
-export function platformDB(){const e=env as any;if(e?.DB)return e.DB;const fallback=getSqliteD1Database();if(fallback)return fallback;throw new Error('Database unavailable');}
+export function platformDB(){
+  const e = (env as any)?.DB ? (env as any) : ((globalThis as any).__CLOUDFLARE_ENV__ || (env as any));
+  if(e?.DB) return e.DB;
+  const fallback=getSqliteD1Database();
+  if(fallback) return fallback;
+  throw new Error('Database unavailable');
+}
 export async function platformIdentity(){
  const user=await getChatGPTUser();if(!user)throw new APIError(401,'يرجى تسجيل الدخول');const database=platformDB();let row=await database.prepare('SELECT owner_id FROM platform_settings WHERE id=1').first<{owner_id:string}>();
  if(!row){const configured=(env as unknown as {OWNER_EMAIL?:string}).OWNER_EMAIL?.trim().toLowerCase();if(!configured||user.email.toLowerCase()!==configured)throw new APIError(403,'مالك المنصة لم يكمل التهيئة');const now=new Date().toISOString();await database.batch([
@@ -23,7 +29,7 @@ export async function agencyAccess(){
  const userEmail=c.user.email.toLowerCase();
  const rows=(c.owner
    ? await c.database.prepare('SELECT id,name,state FROM platform_agencies ORDER BY name').all()
-   : await c.database.prepare("SELECT a.id,a.name,a.state FROM platform_agencies a LEFT JOIN platform_memberships m ON m.agency_id=a.id AND LOWER(m.email)=? AND m.active=1 WHERE (m.id IS NOT NULL OR LOWER(a.admin_email)=? OR a.id=?) AND a.state!='archived' GROUP BY a.id ORDER BY a.name").bind(userEmail,userEmail,legacyAgencyId).all()
+   : await c.database.prepare("SELECT a.id,a.name,a.state FROM platform_agencies a LEFT JOIN platform_memberships m ON m.agency_id=a.id AND LOWER(m.email)=? AND m.active=1 WHERE (m.agency_id IS NOT NULL OR LOWER(a.admin_email)=? OR a.id=?) AND a.state!='archived' GROUP BY a.id ORDER BY a.name").bind(userEmail,userEmail,legacyAgencyId).all()
  ).results;
  const selected=(await cookies()).get(agencyCookie)?.value;
  let agencyId=selected;

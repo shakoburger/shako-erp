@@ -335,7 +335,9 @@ export function PlatformPanel(){
               <Crown size={15}/> منصة المالك المركزية | SHAKO SuperAdmin
             </span>
             <span style={{fontSize:'12px',color:'#94a3b8',display:'inline-flex',alignItems:'center',gap:'8px',flexWrap:'wrap'}}>
-              <span>الحساب: <strong style={{color:'#f8fafc'}}>{data.owner?.name || 'مالك النظام'}</strong> ({data.owner?.email || 'owner@shako.com'})</span>
+              <span>اسم المستخدم: <strong style={{color:'#fef08a',background:'rgba(254,240,138,0.18)',padding:'2px 8px',borderRadius:'4px',fontFamily:'monospace',direction:'ltr',display:'inline-block'}}>{data.owner?.username || 'owner'}</strong></span>
+              <span>الاسم: <strong style={{color:'#f8fafc'}}>{data.owner?.name || 'مالك النظام'}</strong></span>
+              <span>({data.owner?.email || 'owner@shako.com'})</span>
               {data.owner?.phone && (
                 <span style={{background:'rgba(255,255,255,0.1)',padding:'2px 8px',borderRadius:'4px',color:'#f1f5f9',direction:'ltr',display:'inline-flex',alignItems:'center',gap:'4px'}}>
                   <Phone size={12} color="#38bdf8"/> {data.owner.phone}

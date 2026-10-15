@@ -1,5 +1,6 @@
 import {platformDB, legacyAgencyId} from '@/lib/platform';
 import {passwordMatches, newToken, tokenHash, sessionCookie} from '@/lib/agency-security';
+import {cookies} from 'next/headers';
 
 export async function POST(req: Request) {
   try {
@@ -19,7 +20,7 @@ export async function POST(req: Request) {
     const maxAge = remember ? 30 * 24 * 3600 : 8 * 3600; // 30 days or 8 hours
 
     // Resolve owner ID and ownerAuth credentials from system_settings
-    const sysRow = await db.prepare('SELECT owner_id, payload FROM system_settings WHERE id = 1').first<any>();
+    const sysRow: any = await db.prepare('SELECT owner_id, payload FROM system_settings WHERE id = 1').first();
     const ownerId = sysRow?.owner_id || 'local_seedy';
     let sysPayload: any = {};
     try {
@@ -65,7 +66,7 @@ export async function POST(req: Request) {
           role: 'owner',
           agencyId: legacyAgencyId,
           isOwner: true,
-          redirectTo: '/owner',
+          redirectTo: '/',
         };
       }
     }
@@ -92,10 +93,10 @@ export async function POST(req: Request) {
 
     // 3. Check database `members` table for matching account
     if (!authenticatedUser) {
-      const member = await db
+      const member: any = await db
         .prepare('SELECT * FROM members WHERE (LOWER(email) = ? OR LOWER(email) LIKE ? OR LOWER(name) = ? OR LOWER(user_id) = ?) AND active = 1')
         .bind(username, `${username}@%`, username, username)
-        .first<any>();
+        .first();
 
       if (member) {
         let validPassword = false;
@@ -173,10 +174,10 @@ export async function POST(req: Request) {
     // Sync member record and establish an active agency session so they enter directly without secondary password prompt
     if (!authenticatedUser.isOwner) {
       const email = authenticatedUser.email.toLowerCase();
-      const existingMember = await db
+      const existingMember: any = await db
         .prepare('SELECT * FROM members WHERE LOWER(email) = ?')
         .bind(email)
-        .first<any>();
+        .first();
 
       let pVersion = 1;
       if (existingMember) {
@@ -214,14 +215,14 @@ export async function POST(req: Request) {
 
       // Ensure active membership in platform_memberships
       const agencyId = authenticatedUser.agencyId || legacyAgencyId;
-      const memRow = await db
-        .prepare('SELECT id FROM platform_memberships WHERE agency_id = ? AND LOWER(email) = ?')
+      const memRow: any = await db
+        .prepare('SELECT active FROM platform_memberships WHERE agency_id = ? AND LOWER(email) = ?')
         .bind(agencyId, email)
-        .first<any>();
+        .first();
       if (!memRow) {
         await db
-          .prepare('INSERT INTO platform_memberships (id, agency_id, email, active, created_at) VALUES (?, ?, ?, 1, ?)')
-          .bind(crypto.randomUUID(), agencyId, email, new Date().toISOString())
+          .prepare('INSERT OR IGNORE INTO platform_memberships (agency_id, email, active) VALUES (?, ?, 1)')
+          .bind(agencyId, email)
           .run();
       } else {
         await db
@@ -252,9 +253,14 @@ export async function POST(req: Request) {
     );
 
     // 3. shako_selected_agency
+    let targetAgencyId = legacyAgencyId;
+    try {
+      const existing = (await cookies()).get('shako_selected_agency')?.value;
+      if (existing) targetAgencyId = existing;
+    } catch {}
     headers.append(
       'Set-Cookie',
-      `shako_selected_agency=${legacyAgencyId}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${365 * 24 * 3600}${secureFlag}`
+      `shako_selected_agency=${targetAgencyId}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${365 * 24 * 3600}${secureFlag}`
     );
 
     // 4. shako_agency_session (for agency member verification)

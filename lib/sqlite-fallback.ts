@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { createRequire } from 'node:module';
 import { defaults } from './domain';
+import { sqlWasmBase64 } from './sql-wasm-binary';
 
 const require = createRequire(import.meta.url);
 
@@ -11,6 +12,47 @@ let dbInstance: any = null;
 
 const dbPath = process.env.SQLITE_PATH || (process.env.VERCEL ? '/tmp/shako.sqlite' : './shako.sqlite');
 
+function findWranglerD1Path(): string | null {
+  try {
+    const d1Base = path.join(process.cwd(), '.wrangler', 'state', 'v3', 'd1', 'miniflare-D1DatabaseObject');
+    if (fs.existsSync(d1Base)) {
+      const files = fs.readdirSync(d1Base)
+        .filter(f => f.endsWith('.sqlite') && !f.includes('metadata'))
+        .sort((a, b) => {
+          try {
+            const sA = fs.statSync(path.join(d1Base, a)).size;
+            const sB = fs.statSync(path.join(d1Base, b)).size;
+            return sB - sA;
+          } catch {
+            return 0;
+          }
+        });
+      if (files.length > 0) {
+        return path.join(d1Base, files[0]);
+      }
+    }
+  } catch {}
+  return null;
+}
+
+function syncDatabases() {
+  try {
+    const wranglerPath = findWranglerD1Path();
+    if (!wranglerPath || !fs.existsSync(wranglerPath)) return;
+    if (!fs.existsSync(dbPath)) {
+      fs.copyFileSync(wranglerPath, dbPath);
+      return;
+    }
+    const wStat = fs.statSync(wranglerPath);
+    const lStat = fs.statSync(dbPath);
+    if (wStat.mtimeMs > lStat.mtimeMs && wStat.size >= lStat.size) {
+      fs.copyFileSync(wranglerPath, dbPath);
+    } else if (lStat.mtimeMs > wStat.mtimeMs && lStat.size >= wStat.size) {
+      fs.copyFileSync(dbPath, wranglerPath);
+    }
+  } catch {}
+}
+
 function persistDb(instance: any) {
   try {
     if (instance?.type === 'sqljs' && !instance?.inTransaction && dbPath && dbPath !== ':memory:') {
@@ -19,7 +61,12 @@ function persistDb(instance: any) {
       if (dir && dir !== '.' && !fs.existsSync(dir)) {
         fs.mkdirSync(dir, { recursive: true });
       }
-      fs.writeFileSync(dbPath, Buffer.from(data));
+      const buf = Buffer.from(data);
+      fs.writeFileSync(dbPath, buf);
+      const wranglerPath = findWranglerD1Path();
+      if (wranglerPath && fs.existsSync(path.dirname(wranglerPath))) {
+        fs.writeFileSync(wranglerPath, buf);
+      }
     }
   } catch (err) {
     console.warn('Could not persist database to disk:', err);
@@ -231,29 +278,76 @@ async function getDb(): Promise<any> {
   if (dbInstance) return dbInstance;
   if (!sqlPromise) {
     sqlPromise = (async () => {
-      // 1. Try native node:sqlite
+      syncDatabases();
+
+      // Polyfill location for Emscripten / sql.js when running in worker scopes
       try {
-        const mod = require('node:sqlite');
-        if (mod && mod.DatabaseSync) {
-          const instance = { type: 'node', db: new mod.DatabaseSync(dbPath), inTransaction: false };
-          initDdl(instance);
-          return instance;
+        if (typeof globalThis !== 'undefined' && !(globalThis as any).location) {
+          (globalThis as any).location = { href: 'http://localhost:5173/' };
+        }
+        if (typeof self !== 'undefined' && !(self as any).location) {
+          (self as any).location = { href: 'http://localhost:5173/' };
         }
       } catch {}
 
-      // 2. Fallback to sql.js (pure WASM, works across any Node version)
-      const initSqlJs = (await import('sql.js')).default;
-      let wasmBinary: Buffer | undefined;
+      // 1. Try native host node:sqlite
       try {
-        const wasmPath = path.join(path.dirname(require.resolve('sql.js')), 'sql-wasm.wasm');
-        if (fs.existsSync(wasmPath)) {
-          wasmBinary = fs.readFileSync(wasmPath);
+        let mod: any = null;
+        if (typeof process !== 'undefined' && typeof (process as any).getBuiltinModule === 'function') {
+          try {
+            mod = (process as any).getBuiltinModule('node:sqlite');
+          } catch {}
         }
-      } catch (err) {
-        console.warn('Could not read sql-wasm.wasm directly:', err);
+        if (!mod) {
+          // @ts-ignore
+          mod = await import('node:sqlite');
+        }
+        if (mod && mod.DatabaseSync) {
+          try {
+            const testDb = new mod.DatabaseSync(':memory:');
+            testDb.close();
+            const instance = { type: 'node', db: new mod.DatabaseSync(dbPath), inTransaction: false };
+            initDdl(instance);
+            return instance;
+          } catch {}
+        }
+      } catch (e) {
+        // Fall through to sql.js
       }
 
-      const SQL = await initSqlJs(wasmBinary ? { wasmBinary } : undefined);
+      // 2. Fallback to sql.js (pure WASM with instantiateWasm, 100% offline & self-contained)
+      // @ts-ignore
+      const initSqlJs = (await import('sql.js')).default;
+      let wasmBytes: Uint8Array;
+      try {
+        if (typeof Buffer !== 'undefined' && typeof Buffer.from === 'function') {
+          const buf = Buffer.from(sqlWasmBase64, 'base64');
+          wasmBytes = new Uint8Array(buf.buffer, buf.byteOffset, buf.byteLength);
+        } else {
+          const binaryString = atob(sqlWasmBase64);
+          const len = binaryString.length;
+          wasmBytes = new Uint8Array(len);
+          for (let i = 0; i < len; i++) {
+            wasmBytes[i] = binaryString.charCodeAt(i);
+          }
+        }
+      } catch (err) {
+        console.error('Failed to decode sql-wasm.wasm base64:', err);
+        throw err;
+      }
+
+      const SQL = await initSqlJs({
+        instantiateWasm(imports: any, successCallback: any) {
+          WebAssembly.instantiate(wasmBytes, imports)
+            .then((out: any) => {
+              successCallback(out.instance, out.module);
+            })
+            .catch((err: any) => {
+              console.error('WebAssembly.instantiate failed:', err);
+            });
+          return {};
+        }
+      });
       let sqljsDb: any;
       if (fs.existsSync(dbPath)) {
         try {
@@ -268,7 +362,10 @@ async function getDb(): Promise<any> {
       const instance = { type: 'sqljs', db: sqljsDb, inTransaction: false };
       initDdl(instance);
       return instance;
-    })();
+    })().catch((err) => {
+      sqlPromise = null;
+      throw err;
+    });
   }
   dbInstance = await sqlPromise;
   return dbInstance;

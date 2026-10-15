@@ -15,9 +15,9 @@ export async function POST(req:Request){return handled(async()=>{
  sameOrigin(req);
  const c=await context();
  
- // Only agency manager (admin role) or platform owner can reset the program
- if(c.access.role!=='admin'&&!c.owner){
-  throw new APIError(403,'مسح كافة العمليات والحسابات وإعادة ضبط البرنامج متاح لمدير الوكالة فقط');
+ // Only platform owner can reset the program
+ if(!c.owner){
+  throw new APIError(403,'مسح كافة العمليات والحسابات وإعادة ضبط البرنامج متاح حصرياً لمالك المنظومة للحفاظ على أمان البيانات والحسابات');
  }
  
  const b=resetSchema.parse(await body(req));

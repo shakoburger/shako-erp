@@ -62,6 +62,7 @@ export async function GET(req:Request){
       sysPhones=p.phones||'';
     }catch{}
     const ownerInfo={
+      username:ownerAuth.username||'owner',
       name:ownerAuth.name||c.user.displayName||'مالك المنصة',
       email:ownerAuth.email||c.user.email||'owner@shako.com',
       phone:ownerAuth.phone||sysPhones||''
