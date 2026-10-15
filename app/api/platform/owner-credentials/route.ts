@@ -18,7 +18,7 @@ export async function GET() {
       username: ownerAuth.username || 'owner',
       name: ownerAuth.name || c.user.displayName || 'مالك المنصة الأساسي',
       email: ownerAuth.email || c.user.email || 'owner@shako.com',
-      phone: ownerAuth.phone || sysPayload.supportPhone || sysPayload.phones || '',
+      phone: ownerAuth.phone || sysPayload.supportPhone || '',
       hasCustomPassword: Boolean(ownerAuth.passwordHash),
       updatedAt: ownerAuth.updatedAt || null,
     });
@@ -64,9 +64,10 @@ export async function POST(req: Request) {
 
     if (b.phone !== undefined) {
       payload.supportPhone = b.phone.trim();
-      if (b.phone.trim()) {
-        payload.phones = b.phone.trim();
+      if (!payload.ownerAuth) {
+        payload.ownerAuth = {};
       }
+      payload.ownerAuth.phone = b.phone.trim();
     }
 
     let passwordChanged = false;

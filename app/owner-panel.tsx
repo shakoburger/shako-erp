@@ -157,7 +157,8 @@ export function OwnerPanel({settings,revision,onSave,backup}:{settings:Settings;
     <div className="settings-fields">
      <label>اسم النظام<input value={draft.systemName} maxLength={30} onChange={e=>update('systemName',e.target.value)}/></label>
      <label>اسم الشركة<input value={draft.companyName} onChange={e=>update('companyName',e.target.value)}/></label>
-     <label>أرقام التواصل<input dir="ltr" value={draft.phones} onChange={e=>update('phones',e.target.value)}/><small>يمكن كتابة أكثر من رقم، مفصولًا بمسافة.</small></label>
+     <label><span>أرقام تواصل الوكالة (كشوفات الحسابات والتقارير)</span><input dir="ltr" value={draft.phones} onChange={e=>update('phones',e.target.value)}/><small>يظهر في كشوفات الحسابات، الفواتير، والتقارير للعملاء.</small></label>
+     <label><span>رقم الدعم الفني للمنظومة (المالك)</span><input dir="ltr" value={draft.supportPhone || ''} onChange={e=>update('supportPhone',e.target.value)}/><small>خاص بمالك المنظومة — يظهر في الشريط الجانبي وشاشة الإيقاف للتواصل والدعم الفني.</small></label>
      <label>المبلغ الظاهر في واجهة المستخدم<input dir="ltr" type="number" min="0" step="0.01" value={draft.displayAmount} onChange={e=>update('displayAmount',Number(e.target.value))}/></label>
      <label>قيمة النظام المستحقة<input dir="ltr" type="number" min="0" step="0.01" value={draft.licenseAmount} onChange={e=>update('licenseAmount',Number(e.target.value))}/></label>
      <label>السنة المالية<input dir="ltr" type="number" min="2000" max="2100" value={draft.financialYear} onChange={e=>update('financialYear',Number(e.target.value))}/></label>
@@ -295,15 +296,18 @@ export function OwnerPanel({settings,revision,onSave,backup}:{settings:Settings;
         </label>
 
         <label style={{display:'flex',flexDirection:'column',gap:'5px',fontSize:'13px',fontWeight:600,color:'#1e293b'}}>
-          <span>رقم هاتف المالك والدعم الفني</span>
+          <span>رقم هاتف الدعم الفني للمنظومة (خاص بالمالك)</span>
           <input
             type="tel"
             dir="ltr"
             value={credPhone}
             onChange={e => setCredPhone(e.target.value)}
-            placeholder="0100000000"
+            placeholder="01556849413"
             style={{padding:'10px 12px',borderRadius:'8px',border:'1px solid #cbd5e1',fontSize:'14px'}}
           />
+          <small style={{fontSize:'11.5px',color:'#64748b',fontWeight:400}}>
+            هذا الرقم للتواصل مع المالك والدعم الفني في الشريط الجانبي وعند إيقاف النظام (مستقل تماماً عن هاتف تواصل الوكالة).
+          </small>
         </label>
 
         <div style={{background:'#fffbeb',border:'1px solid #fde68a',borderRadius:'10px',padding:'14px',display:'flex',flexDirection:'column',gap:'10px'}}>

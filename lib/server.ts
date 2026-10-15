@@ -10,14 +10,13 @@ export async function context(options:{allowPasswordPending?:boolean;allowSuspen
  const rawSettings={...defaults,...JSON.parse(row.payload)} as Settings;
  let platformSupportPhone = '';
  try {
-   const platformRow = await tenant.rawDatabase.prepare('SELECT payload FROM system_settings WHERE id = 1').first<any>();
+   const platformRow = (await tenant.rawDatabase.prepare('SELECT payload FROM system_settings WHERE id = 1').first()) as any;
    if (platformRow?.payload) {
      const pl = JSON.parse(platformRow.payload);
-     platformSupportPhone = pl.supportPhone || pl.ownerAuth?.phone || pl.phones || '';
+     platformSupportPhone = pl.supportPhone || pl.ownerAuth?.phone || '';
    }
  } catch {}
- const effectiveSupportPhone = platformSupportPhone || rawSettings.supportPhone || defaults.supportPhone || '0100000000';
- rawSettings.supportPhone = effectiveSupportPhone;
+ const effectiveSupportPhone = platformSupportPhone || '01556849413';
  const access=owner?roleAccess('admin'):parseAccess(member?.permissions?JSON.parse(member.permissions):null,(member?.role||'viewer') as AgencyRole);
  const settings={...rawSettings,supportPhone:effectiveSupportPhone,displayAmount:sub.fee,licenseAmount:sub.fee,paymentStatus:sub.paymentStatus,globalLocked:rawSettings.globalLocked||tenant.agency.state!=='active'||sub.isAutoLocked,lockReason:sub.isAutoLocked?(sub.lockReason||rawSettings.lockReason):rawSettings.lockReason,modules:Object.fromEntries(Object.keys(rawSettings.modules).map(m=>[m,rawSettings.modules[m as ModuleKey]&&access.modules[m as ModuleKey]!=='none'])) as Settings['modules']};
  return {user,owner,settings,rawSettings,access,member,sessionValid,sessionHash,passwordRequired,revision:row.revision as number,database,agency:tenant.agency,rawDatabase:tenant.rawDatabase,subscription:sub};}
