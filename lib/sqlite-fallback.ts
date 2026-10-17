@@ -116,12 +116,12 @@ function initDdl(instance: any) {
     );
 
     CREATE TABLE IF NOT EXISTS platform_memberships (
-      id TEXT PRIMARY KEY,
       agency_id TEXT NOT NULL,
       email TEXT NOT NULL,
-      active INTEGER NOT NULL DEFAULT 1,
-      created_at TEXT NOT NULL
+      active INTEGER NOT NULL DEFAULT 1
     );
+
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_platform_membership ON platform_memberships (agency_id, email);
 
     CREATE TABLE IF NOT EXISTS members (
       email TEXT PRIMARY KEY,
@@ -176,26 +176,62 @@ function initDdl(instance: any) {
 
   if (instance.type === 'node') {
     instance.db.exec(ddl);
+    try {
+      const pCols = instance.db.prepare("PRAGMA table_info(platform_memberships)").all();
+      const colNames = Array.isArray(pCols) ? pCols.map((c: any) => c.name || '') : [];
+      if (colNames.includes('id') || colNames.includes('created_at')) {
+        instance.db.exec(`
+          CREATE TABLE IF NOT EXISTS platform_memberships_fix (
+            agency_id TEXT NOT NULL,
+            email TEXT NOT NULL,
+            active INTEGER NOT NULL DEFAULT 1
+          );
+          INSERT OR IGNORE INTO platform_memberships_fix (agency_id, email, active) 
+          SELECT agency_id, email, COALESCE(active, 1) FROM platform_memberships;
+          DROP TABLE platform_memberships;
+          ALTER TABLE platform_memberships_fix RENAME TO platform_memberships;
+          CREATE UNIQUE INDEX IF NOT EXISTS idx_platform_membership ON platform_memberships (agency_id, email);
+        `);
+      }
+    } catch {}
     const existing = instance.db.prepare('SELECT id FROM system_settings WHERE id = 1').get();
     if (!existing) {
       seedDefaultData(instance);
     } else {
       instance.db.prepare(`INSERT OR IGNORE INTO platform_memberships (
-        id, agency_id, email, active, created_at
+        agency_id, email, active
       ) VALUES (
-        'mem_default_admin', '00000000-0000-4000-8000-000000000001', 'admin@shako.com', 1, ?
-      )`).run(new Date().toISOString());
+        '00000000-0000-4000-8000-000000000001', 'admin@shako.com', 1
+      )`).run();
     }
   } else if (instance.type === 'sqljs') {
     instance.db.run(ddl);
+    try {
+      const pCols = instance.db.exec("PRAGMA table_info(platform_memberships)")[0]?.values || [];
+      const colNames = pCols.map((c: any) => (Array.isArray(c) ? c[1] : ''));
+      if (colNames.includes('id') || colNames.includes('created_at')) {
+        instance.db.run(`
+          CREATE TABLE IF NOT EXISTS platform_memberships_fix (
+            agency_id TEXT NOT NULL,
+            email TEXT NOT NULL,
+            active INTEGER NOT NULL DEFAULT 1
+          );
+          INSERT OR IGNORE INTO platform_memberships_fix (agency_id, email, active) 
+          SELECT agency_id, email, COALESCE(active, 1) FROM platform_memberships;
+          DROP TABLE platform_memberships;
+          ALTER TABLE platform_memberships_fix RENAME TO platform_memberships;
+          CREATE UNIQUE INDEX IF NOT EXISTS idx_platform_membership ON platform_memberships (agency_id, email);
+        `);
+      }
+    } catch {}
     const res = instance.db.exec('SELECT id FROM system_settings WHERE id = 1');
     if (!res || !res.length || !res[0].values.length) {
       seedDefaultData(instance);
     } else {
       instance.db.run(`INSERT OR IGNORE INTO platform_memberships (
-        id, agency_id, email, active, created_at
+        agency_id, email, active
       ) VALUES (
-        'mem_default_admin', '00000000-0000-4000-8000-000000000001', 'admin@shako.com', 1, '${new Date().toISOString()}'
+        '00000000-0000-4000-8000-000000000001', 'admin@shako.com', 1
       )`);
       persistDb(instance);
     }
@@ -234,10 +270,10 @@ function seedDefaultData(instance: any) {
       'admin@shako.com', 'agency_admin_user', 1, ?, 'مدير الوكالة', 'admin', null, 1, 0
     )`).run(now);
     instance.db.prepare(`INSERT OR IGNORE INTO platform_memberships (
-      id, agency_id, email, active, created_at
+      agency_id, email, active
     ) VALUES (
-      'mem_default_admin', '00000000-0000-4000-8000-000000000001', 'admin@shako.com', 1, ?
-    )`).run(now);
+      '00000000-0000-4000-8000-000000000001', 'admin@shako.com', 1
+    )`).run();
     for (const s of defaultSeeds) {
       instance.db.prepare(`INSERT OR IGNORE INTO records (
         id, kind, module, code, name, date, currency, amount, payload, created_at, updated_at
@@ -259,10 +295,10 @@ function seedDefaultData(instance: any) {
       'admin@shako.com', 'agency_admin_user', 1, ?, 'مدير الوكالة', 'admin', null, 1, 0
     )`, [now]);
     instance.db.run(`INSERT OR IGNORE INTO platform_memberships (
-      id, agency_id, email, active, created_at
+      agency_id, email, active
     ) VALUES (
-      'mem_default_admin', '00000000-0000-4000-8000-000000000001', 'admin@shako.com', 1, ?
-    )`, [now]);
+      '00000000-0000-4000-8000-000000000001', 'admin@shako.com', 1
+    )`);
     for (const s of defaultSeeds) {
       instance.db.run(`INSERT OR IGNORE INTO records (
         id, kind, module, code, name, date, currency, amount, payload, created_at, updated_at

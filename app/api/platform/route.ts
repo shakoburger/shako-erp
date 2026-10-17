@@ -109,12 +109,14 @@ export async function POST(req:Request){
     };
 
     const raw=(sql:string)=>c.database.prepare(tenantSQL(sql,namespace));
+    for(const sql of agencyDDL(namespace)){
+      await c.database.prepare(sql).run();
+    }
     await c.database.batch([
-      ...agencyDDL(namespace).map(sql=>c.database.prepare(sql)),
       c.database.prepare('INSERT INTO platform_agencies (id,name,namespace,admin_email,state,payment_status,fee_minor,currency,paid_on,due_on,notes,revision,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,1,?,?)').bind(id,b.name,namespace,b.adminEmail.toLowerCase(),b.state,b.paymentStatus,Math.round(b.fee*100),b.currency,b.paidOn,b.dueOn,b.notes,now,now),
       raw('INSERT INTO system_settings (id,owner_id,payload,revision,updated_at) VALUES (1,?,?,1,?)').bind(c.ownerId,JSON.stringify(settings),now),
       raw('INSERT INTO members (email,name,role,permissions,active,created_at,password_hash,password_salt,password_version,force_password_change) VALUES (?,?,?,?,1,?,?,?,1,?)').bind(b.adminEmail.toLowerCase(),b.adminName,'admin',JSON.stringify(roleAccess('admin')),now,pwd.hash,pwd.salt,forceChange),
-      c.database.prepare('INSERT INTO platform_memberships (agency_id,email,active) VALUES (?,?,1)').bind(id,b.adminEmail.toLowerCase()),
+      c.database.prepare('INSERT OR IGNORE INTO platform_memberships (agency_id,email,active) VALUES (?,?,1)').bind(id,b.adminEmail.toLowerCase()),
       platformAudit(c.database,c.user.email,id,'إضافة وكالة جديدة مع تعيين بيانات المدير',null,{name:b.name,adminEmail:b.adminEmail,state:b.state,forcePasswordChange:forceChange===1})
     ]);
     return json({ok:true,id},201);
