@@ -29,7 +29,7 @@ const newForm=(type:string)=>({type,date:today(),treasuryId:'',counterpartyId:''
 export function CashWorkspace({mode,settings,initialStagedOp,onStagedConsumed,onClose}:{mode:string;settings:Settings;initialStagedOp?:any;onStagedConsumed?:()=>void;onClose:()=>void}){
  const w=useWorkspaceWindow(),access=useAgencyAccess(),canManage=access.modules.cash==='manage'&&(mode!=='currency'||access.manageSettings);
  const {data,error,loading,load}=useCash();const type=mode.replace(/^(edit|print)-/,'');const editing=mode.startsWith('edit-');const catalog=type==='account'||type==='currency';
- const [form,setForm]=useState<any>(catalog?{name:'',currency:'',rate:1,parentId:''}:newForm(type)),[search,setSearch]=useState(''),[busy,setBusy]=useState(false),[confirm,setConfirm]=useState(false);
+ const [form,setForm]=useState<any>(catalog?{name:'',currency:type==='account'?'MULTI':'',rate:1,parentId:''}:newForm(type)),[search,setSearch]=useState(''),[busy,setBusy]=useState(false),[confirm,setConfirm]=useState(false);
  const [accountToDelete,setAccountToDelete]=useState<any>(null),[accountConfirm,setAccountConfirm]=useState(false),[showArchived,setShowArchived]=useState(false);
  const [whatsAppModal,setWhatsAppModal]=useState<{name:string;phone:string;message:string}|null>(null);
  async function removeAccount(acc?:any){
@@ -83,7 +83,7 @@ export function CashWorkspace({mode,settings,initialStagedOp,onStagedConsumed,on
  const counterOptions=data.counterparties.filter(isCashCounterpartyAllowed).filter(a=>!settings.enabledCurrencies||settings.enabledCurrencies.includes(a.currency)||a.kind==='customer'||a.currency==='MULTI').filter(a=>a.id!==form.treasuryId&&(form.crossCurrency||!treasury||treasury.currency==='MULTI'||(type==='forex'?a.currency!==treasury.currency:(a.kind==='customer'||a.currency==='MULTI'||a.currency===treasury.currency)))).map(a=>({value:a.id,label:accountLabel(a)}));
  const cashboxOptions=data.treasuries.filter(a=>a.kind==='cash-account'&&(!settings.enabledCurrencies||settings.enabledCurrencies.includes(a.currency)||a.currency==='MULTI')).filter(a=>!foreign||(type==='forex'?a.currency!==foreign.currency:(a.currency==='MULTI'||foreign.kind==='customer'||foreign.currency==='MULTI'||a.currency===foreign.currency))).map(a=>({value:a.id,label:a.name+' · خزينة · '+(a.currency==='MULTI'?'متعدد العملات':a.currency)}));
  const effectiveRate=type==='forex'?Number(form.conversionRate):1;const currencyName=(code:string)=>code==='MULTI'?'متعدد العملات':data.currencies.find(c=>c.code===code)?.name||code;
- function clear(){setForm(catalog?{name:'',currency:'',rate:1,parentId:''}:newForm(type));setSearch('')}
+ function clear(){setForm(catalog?{name:'',currency:type==='account'?'MULTI':'',rate:1,parentId:''}:newForm(type));setSearch('')}
  function chooseTreasury(id:string){const a=data.treasuries.find(x=>x.id===id),counter=data.counterparties.find(x=>x.id===form.counterpartyId);const keep=counter&&counter.id!==id&&(type==='forex'?counter.currency!==a?.currency:(counter.kind==='customer'||counter.currency==='MULTI'||counter.currency===a?.currency||a?.currency==='MULTI'));setForm((f:any)=>({...f,treasuryId:id,counterpartyId:keep?counter.id:'',transactionCurrency:keep?(counter.kind==='customer'||counter.currency==='MULTI'?(a?.currency==='MULTI'?(f.treasuryCurrency||'USD'):a?.currency||'USD'):counter.currency):a?.currency||'',conversionRate:keep&&counter.currency!==a?.currency&&counter.kind!=='customer'&&counter.currency!=='MULTI'&&a?.currency!=='MULTI'?'':1}))}
  function chooseCounter(id:string){const a=data.counterparties.find(x=>x.id===id);setForm((f:any)=>({...f,counterpartyId:id,transactionCurrency:a?.kind==='customer'||a?.currency==='MULTI'?(treasury?.currency==='MULTI'?(f.treasuryCurrency||'USD'):treasury?.currency||f.transactionCurrency||'USD'):(a?.currency||''),conversionRate:a?.currency===treasury?.currency||a?.kind==='customer'||a?.currency==='MULTI'||treasury?.currency==='MULTI'?1:''}))}
  function onSelectStaged(op:any){
@@ -167,7 +167,7 @@ export function CashWorkspace({mode,settings,initialStagedOp,onStagedConsumed,on
    const effTreasuryCurrency=form.crossCurrency?form.settlementCurrency:(treasury?.currency==='MULTI'?(form.treasuryCurrency||'USD'):treasury?.currency);
    let row;
    if(catalog){
-    row=await api('/api/cash',{method:'POST',body:JSON.stringify({action:type,id:form.id,name:form.name,currency:form.currency,rate:Number(form.rate),...(type==='account'&&form.parentId?{parentId:form.parentId}:{})})});
+    row=await api('/api/cash',{method:'POST',body:JSON.stringify({action:type,id:form.id,name:form.name,currency:type==='account'?(form.currency||'MULTI'):form.currency,rate:Number(form.rate),...(type==='account'&&form.parentId?{parentId:form.parentId}:{})})});
    }else{
     if(editing&&!form.id)throw new Error('ابحث عن رقم الإيصال أولًا');
     if(form.crossCurrency){
