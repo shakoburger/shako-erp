@@ -504,7 +504,6 @@ export function PlatformPanel(){
                 <tr key={a.id}>
                   <td>
                     <strong>{a.name}</strong>
-                    <small className="cell-secondary">{a.companyName!==a.name?a.companyName:''}</small>
                     <small className="cell-secondary" dir="ltr" style={{fontWeight:600,color:'#0f766e'}}>
                       {a.admin_email||a.adminEmail||'الوكالة المحلية الحالية'}
                     </small>

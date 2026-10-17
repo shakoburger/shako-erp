@@ -36,6 +36,12 @@ export async function GET(req:Request){
     const rows=await Promise.all(agencies.map(async a=>{
       const r=await tenantDB(c.database,a.namespace).prepare('SELECT payload FROM system_settings WHERE id=1').first<{payload:string}>();
       const settings=r?.payload?JSON.parse(r.payload):defaults;
+      if(a.name && settings.companyName !== a.name){
+        try{
+          await tenantDB(c.database,a.namespace).prepare("UPDATE system_settings SET payload=json_set(payload,'$.companyName',?) WHERE id=1").bind(a.name).run();
+          settings.companyName=a.name;
+        }catch{}
+      }
       const sub=evaluateSubscription(a);
       if(sub.isAutoLocked&&a.state==='active'){
         await c.database.prepare("UPDATE platform_agencies SET state='suspended', updated_at=? WHERE id=? AND state='active'").bind(new Date().toISOString(),a.id).run();
@@ -48,7 +54,7 @@ export async function GET(req:Request){
         adminEmail:a.admin_email,
         backupAllowed:settings.ownerBackupAllowed!==false,
         modules:{stagedOps:true,...(settings.modules||defaults.modules)},
-        companyName:settings.companyName||a.name,
+        companyName:a.name,
         overdue:sub.isOverdue,
         subscription:sub
       };
@@ -148,10 +154,11 @@ export async function PUT(req:Request){
     const backupAllowed=b.ownerBackupAllowed!==undefined?b.ownerBackupAllowed:(currentSettings.ownerBackupAllowed!==false);
 
     // 2. Prepare main statements
+    const targetName=(b.name||'').trim();
     const stmts:any[]=[
-      c.database.prepare('UPDATE platform_agencies SET name=?,admin_email=?,state=?,payment_status=?,fee_minor=?,currency=?,paid_on=?,due_on=?,notes=?,revision=revision+1,updated_at=? WHERE id=? AND revision=?').bind(b.name,targetEmail,b.state,b.paymentStatus,Math.round(b.fee*100),b.currency,b.paidOn,b.dueOn,b.notes,now,b.id,b.revision),
+      c.database.prepare('UPDATE platform_agencies SET name=?,admin_email=?,state=?,payment_status=?,fee_minor=?,currency=?,paid_on=?,due_on=?,notes=?,revision=revision+1,updated_at=? WHERE id=? AND revision=?').bind(targetName||b.name,targetEmail,b.state,b.paymentStatus,Math.round(b.fee*100),b.currency,b.paidOn,b.dueOn,b.notes,now,b.id,b.revision),
       c.database.prepare('INSERT INTO platform_audit (id,actor,agency_id,action,before_value,after_value,created_at) SELECT ?,?,?,?,?,?,? WHERE changes()>0').bind(auditId,c.user.email,b.id,b.state==='archived'?'أرشفة الوكالة':old.state==='archived'?'استعادة الوكالة':'تعديل الاشتراك والتفعيل وإعدادات الوكالة',JSON.stringify(old),JSON.stringify(b),now),
-      c.database.prepare(tenantSQL("UPDATE system_settings SET payload=json_set(payload,'$.globalLocked',json(?),'$.modules',json(?),'$.ownerBackupAllowed',json(?)),revision=revision+1,updated_at=? WHERE id=1 AND EXISTS (SELECT 1 FROM platform_audit WHERE id=?)",old.namespace)).bind(JSON.stringify(b.state!=='active'),JSON.stringify(mergedModules),JSON.stringify(backupAllowed),now,auditId)
+      c.database.prepare(tenantSQL("UPDATE system_settings SET payload=json_set(payload,'$.companyName',?,'$.globalLocked',json(?),'$.modules',json(?),'$.ownerBackupAllowed',json(?)),revision=revision+1,updated_at=? WHERE id=1 AND EXISTS (SELECT 1 FROM platform_audit WHERE id=?)",old.namespace)).bind(targetName||b.name,JSON.stringify(b.state!=='active'),JSON.stringify(mergedModules),JSON.stringify(backupAllowed),now,auditId)
     ];
 
     // If admin email changed, update platform_memberships
